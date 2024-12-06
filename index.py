@@ -32,3 +32,6 @@ def split_wav_file(wav_path, script_path, output_dir='split_audio'):
 wav_path = 'raw.wav'
 script_path = 'script.txt'
 split_wav_file(wav_path, script_path)
+
+# Cong ví dụ 1 folder raw -> (chia file) -> hoc -> n model -> test.
+# Sang -> label -> source.
