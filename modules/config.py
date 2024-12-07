@@ -2,7 +2,7 @@ import os
 import logging
 
 class Config:
-    MODELS_DIR = 'saved_models'
+    MODELS_DIR = 'models'
     LOGGING_LEVEL = logging.INFO
     SAMPLE_RATE = 16000
     N_MFCC = 13
