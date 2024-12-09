@@ -20,6 +20,7 @@ import io
 app = Flask(__name__)
 
 Config.setup()
+from train import EnhancedBatchTrainer
 
 authenticator = VoiceAuthenticator()
 batch_trainer = BatchTrainer()
@@ -32,22 +33,35 @@ def train():
         if not user_id:
             return jsonify({"error": "user_id is required"}), 400
 
-        audio_files = request.files.getlist('audio_files')
-        if not audio_files:
-            return jsonify({"error": "No audio files provided"}), 400
+        audio_file = request.files.get('audio_file')
+        script_file = request.files.get('script_file')
+        if not audio_file or not script_file:
+            return jsonify({"error": "Both audio_file and script_file are required"}), 400
 
-        result = authenticator.train(user_id, audio_files)
-        
-        if result["success"]:
-            return jsonify(result), 200
-        else:
+        user_dir = os.path.join("train_voice", user_id)
+        os.makedirs(user_dir, exist_ok=True)
+
+        audio_path = os.path.join(user_dir, "raw.wav")
+        script_path = os.path.join(user_dir, "script.txt")
+        audio_file.save(audio_path)
+        script_file.save(script_path)
+
+        trainer = EnhancedBatchTrainer(train_dir="train_voice")
+        result = trainer.train_user_model(user_dir)
+
+        if not result["success"]:
+            os.remove(audio_path)
+            os.remove(script_path)
             return jsonify(result), 500
+
+        return jsonify(result), 200
 
     except Exception as e:
         return jsonify({
             "success": False,
             "error": str(e)
         }), 500
+
 
 @app.route('/train/status', methods=['GET'])
 def training_status():
@@ -101,14 +115,15 @@ def train_batch():
 
 @app.route('/authenticate', methods=['POST'])
 def authenticate():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
+    if not request.files:
+        return jsonify({"error": "No files provided"}), 400
 
     try:
+        file_key, file = next(iter(request.files.items()))
+        
+        if file.filename == '':
+            return jsonify({"error": "No selected file"}), 400
+
         audio_bytes = file.read()
         result = authenticator.authenticate(audio_bytes)
         
@@ -117,6 +132,8 @@ def authenticate():
         else:
             return jsonify(result), 400
 
+    except StopIteration:
+        return jsonify({"error": "No files in the request"}), 400
     except Exception as e:
         return jsonify({
             "success": False,
