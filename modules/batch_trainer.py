@@ -1,6 +1,7 @@
-from modules.feature_extractor import FeatureExtractor
-from modules.model_manager import ModelManager
 import os
+import numpy as np
+from .feature_extractor import FeatureExtractor
+from .model_manager import ModelManager
 
 class BatchTrainer:
     def __init__(self):
@@ -32,7 +33,6 @@ class BatchTrainer:
                     continue
             
             if all_features:
-                import numpy as np
                 combined_features = np.concatenate(all_features)
                 success = self.model_manager.train_model(user_id, combined_features)
                 
