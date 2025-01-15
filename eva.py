@@ -8,12 +8,36 @@ from typing import List, Tuple, Dict, Any
 
 
 def time_to_seconds(time_str: str) -> float:
-    """Convert time string (mm:ss) to seconds."""
+    """Convert time string to seconds. Handles h:mm:ss format.
+    
+    Args:
+        time_str: Time string in h:mm:ss format (e.g., '0:09:31')
+        
+    Returns:
+        Float value representing total seconds
+    """
     try:
-        minutes, seconds = map(float, time_str.split(':'))
-        return minutes * 60 + seconds
-    except ValueError:
-        raise ValueError(f"Invalid time format: {time_str}")
+        # Split time string into parts
+        parts = time_str.strip().split(':')
+        
+        if len(parts) != 3:
+            raise ValueError(f"Expected h:mm:ss format with 3 parts, got {len(parts)} parts")
+            
+        # Convert parts to integers/floats
+        hours = float(parts[0])
+        minutes = float(parts[1])
+        seconds = float(parts[2])
+        
+        # Validate ranges
+        if minutes >= 60 or seconds >= 60:
+            raise ValueError(f"Invalid minutes/seconds value. Minutes: {minutes}, Seconds: {seconds}")
+            
+        # Calculate total seconds
+        total_seconds = hours * 3600 + minutes * 60 + seconds
+        return total_seconds
+        
+    except ValueError as e:
+        raise ValueError(f"Invalid time format in '{time_str}': {str(e)}")
 
 
 def extract_mfcc_librosa(audio_segment: np.ndarray, sr: int = 22050) -> np.ndarray:
@@ -23,7 +47,7 @@ def extract_mfcc_librosa(audio_segment: np.ndarray, sr: int = 22050) -> np.ndarr
             y=audio_segment,
             sr=sr,
             n_mfcc=13,
-            n_fft=1102,
+            n_fft=1200,
             hop_length=int(sr * 0.01),
             win_length=int(sr * 0.025),
             dtype=np.float32
@@ -69,78 +93,6 @@ def process_audio_segment(
 
     return segment_audio, True
 
-
-def evaluate_speaker_recognition(
-    train_voice_dir: str, models_dir: str
-) -> Dict[str, Any]:
-    """Evaluate speaker recognition system."""
-    models = load_models(models_dir)
-    if not models:
-        raise ValueError("No valid models found in the specified directory.")
-
-    speaker_map = {speaker: idx for idx, speaker in enumerate(models.keys())}
-    confusion_matrix = np.zeros((len(models), len(models)))
-    total_segments = 0
-    correct_predictions = 0
-
-    for folder in os.listdir(train_voice_dir):
-        folder_path = os.path.join(train_voice_dir, folder)
-        if not os.path.isdir(folder_path):
-            continue
-
-        wav_files = [f for f in os.listdir(folder_path) if f.endswith('.wav')]
-        if not wav_files:
-            print(f"No WAV files found in folder: {folder}")
-            continue
-
-        wav_file = os.path.join(folder_path, wav_files[0])
-        script_file = os.path.join(folder_path, 'script.txt')
-
-        try:
-            y, sr = sf.read(wav_file)
-            if y.ndim > 1:  # Ensure mono audio
-                y = librosa.to_mono(y.T)
-            with open(script_file, 'r') as f:
-                segments = [
-                    (time_to_seconds(parts[0]), time_to_seconds(parts[1]), parts[2])
-                    for line in f if (parts := line.strip().split()) and len(parts) == 3
-                ]
-
-            for start, end, true_speaker in segments:
-                segment_audio, valid = process_audio_segment(y, sr, start, end)
-                if not valid:
-                    continue
-
-                segment_features = extract_mfcc_librosa(segment_audio, sr)
-                if segment_features.size == 0:
-                    continue
-
-                scores = {
-                    speaker: model.score(segment_features)
-                    for speaker, model in models.items()
-                }
-                predicted_speaker = max(scores, key=scores.get)
-                true_idx = speaker_map[true_speaker]
-                pred_idx = speaker_map[predicted_speaker]
-
-                total_segments += 1
-                correct_predictions += int(predicted_speaker == true_speaker)
-                confusion_matrix[true_idx, pred_idx] += 1
-
-        except Exception as e:
-            print(f"Error processing folder {folder}: {str(e)}")
-
-    accuracy = correct_predictions / total_segments if total_segments else 0.0
-    speaker_metrics = calculate_speaker_metrics(confusion_matrix, speaker_map)
-
-    return {
-        'overall_accuracy': accuracy,
-        'confusion_matrix': confusion_matrix,
-        'speaker_metrics': speaker_metrics,
-        'total_segments': total_segments,
-    }
-
-
 def calculate_speaker_metrics(
     confusion_matrix: np.ndarray, speaker_map: Dict[str, int]
 ) -> Dict[str, Dict[str, float]]:
@@ -165,6 +117,105 @@ def calculate_speaker_metrics(
         }
     return metrics
 
+def evaluate_speaker_recognition(
+    train_voice_dir: str, models_dir: str
+) -> Dict[str, Any]:
+    """Evaluate speaker recognition system."""
+    models = load_models(models_dir)
+    if not models:
+        raise ValueError("No valid models found in the specified directory.")
+
+    speaker_map = {speaker: idx for idx, speaker in enumerate(models.keys())}
+    confusion_matrix = np.zeros((len(models), len(models)))
+    total_segments = 0
+    correct_predictions = 0
+    skipped_segments = 0
+    errors = []
+
+    for folder in os.listdir(train_voice_dir):
+        folder_path = os.path.join(train_voice_dir, folder)
+        if not os.path.isdir(folder_path):
+            continue
+
+        wav_files = [f for f in os.listdir(folder_path) if f.endswith('.wav')]
+        if not wav_files:
+            print(f"No WAV files found in folder: {folder}")
+            continue
+
+        wav_file = os.path.join(folder_path, wav_files[0])
+        script_file = os.path.join(folder_path, 'script.txt')
+
+        try:
+            y, sr = sf.read(wav_file)
+            if y.ndim > 1:  # Ensure mono audio
+                y = librosa.to_mono(y.T)
+                
+            with open(script_file, 'r', encoding='utf-8') as f:
+                segments = []
+                for line_num, line in enumerate(f, 1):
+                    try:
+                        parts = line.strip().split()
+                        if len(parts) != 3:
+                            continue
+                            
+                        start = time_to_seconds(parts[0])
+                        end = time_to_seconds(parts[1])
+                        speaker = parts[2]
+                        
+                        # Basic validation
+                        if end <= start:
+                            errors.append(f"Line {line_num} in {folder}: End time {end} not after start time {start}")
+                            continue
+                            
+                        segments.append((start, end, speaker))
+                        
+                    except ValueError as e:
+                        errors.append(f"Line {line_num} in {folder}: {str(e)}")
+                        continue
+
+            for start, end, true_speaker in segments:
+                if true_speaker not in speaker_map:
+                    errors.append(f"Unknown speaker {true_speaker} in folder {folder}")
+                    skipped_segments += 1
+                    continue
+
+                segment_audio, valid = process_audio_segment(y, sr, start, end)
+                if not valid:
+                    skipped_segments += 1
+                    continue
+
+                segment_features = extract_mfcc_librosa(segment_audio, sr)
+                if segment_features.size == 0:
+                    skipped_segments += 1
+                    continue
+
+                scores = {
+                    speaker: model.score(segment_features)
+                    for speaker, model in models.items()
+                }
+                predicted_speaker = max(scores, key=scores.get)
+                true_idx = speaker_map[true_speaker]
+                pred_idx = speaker_map[predicted_speaker]
+
+                total_segments += 1
+                correct_predictions += int(predicted_speaker == true_speaker)
+                confusion_matrix[true_idx, pred_idx] += 1
+
+        except Exception as e:
+            errors.append(f"Error processing folder {folder}: {str(e)}")
+            continue
+
+    accuracy = correct_predictions / total_segments if total_segments else 0.0
+    speaker_metrics = calculate_speaker_metrics(confusion_matrix, speaker_map)
+
+    return {
+        'overall_accuracy': accuracy,
+        'confusion_matrix': confusion_matrix,
+        'speaker_metrics': speaker_metrics,
+        'total_segments': total_segments,
+        'skipped_segments': skipped_segments,
+        'errors': errors
+    }
 
 def print_evaluation_results(results: Dict[str, Any]) -> None:
     """Print formatted evaluation results."""

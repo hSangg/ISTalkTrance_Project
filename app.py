@@ -4,14 +4,7 @@ from modules.diarization import AutoSpectralDiarizer
 from modules.config import Config
 from modules.batch_trainer import BatchTrainer
 import os
-import io
 import numpy as np
-from pydub import AudioSegment
-
-import numpy as np
-from pydub import AudioSegment
-import io
-import speech_recognition as sr
 
 import librosa
 import numpy as np
