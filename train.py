@@ -59,7 +59,6 @@ class EnhancedBatchTrainer:
                     'end': end_time,
                     'label': label
                 })
-            # user_dir = './train_voice/user123/'
             audio_path = os.path.join('train_voice', 'user123', 'raw.wav')
             print(f"Type of audio_path: {type(audio_path)}")
 
@@ -212,18 +211,13 @@ class EnhancedBatchTrainer:
             Dict with training results
         """
         try:
-            # Locate raw audio and script file
             raw_audio = os.path.join(user_dir, 'raw.wav')
             script_file = [f for f in os.listdir(user_dir) if f.endswith('.txt')][0]
             script_path = os.path.join(user_dir, script_file)
-
-            # Parse timestamp script
             segments = self.parse_timestamp_script(script_path)
 
-            # Export the last 20% for testing and get the first 80% for training
             train_segments = self.extract_and_export_20_percent(raw_audio, segments, output_dir="20_percent_test")
 
-            # Extract features for training data
             label_features = self.extract_segmented_features(raw_audio, train_segments)
 
             results = {}
@@ -235,7 +229,7 @@ class EnhancedBatchTrainer:
                     }
                     continue
 
-                # Train HMM model
+
                 model = hmm.GaussianHMM(
                     n_components=self.hmm_components,
                     covariance_type='diag',
@@ -243,7 +237,6 @@ class EnhancedBatchTrainer:
                 )
                 model.fit(features)
 
-                # Save model
                 model_path = os.path.join('models', f'{label}_model.pkl')
                 joblib.dump(model, model_path)
 
@@ -278,16 +271,14 @@ class EnhancedBatchTrainer:
             print(f"Error: Audio file not found at {audio_path}")
             return
 
-        # Split segments into training (80%) and testing (20%)
         num_segments = len(segments)
-        test_size = int(num_segments * 0.2)  # Last 20% for testing
-        train_segments = segments[:num_segments - test_size]  # First 80% for training
-        test_segments = segments[num_segments - test_size:]  # Last 20% for testing
+        test_size = int(num_segments * 0.2) 
+        train_segments = segments[:num_segments - test_size] 
+        test_segments = segments[num_segments - test_size:] 
 
         print(f"Number of segments: {num_segments}")
         print(f"Training segments: {len(train_segments)}, Testing segments: {len(test_segments)}")
 
-        # Export test segments (last 20%) to output directory
         try:
             audio, sr = librosa.load(audio_path, sr=self.sample_rate)
             print(f"Audio loaded from {audio_path}, sample rate: {sr}")
@@ -297,7 +288,6 @@ class EnhancedBatchTrainer:
                 end_sample = int(segment['end'] * sr)
                 segment_audio = audio[start_sample:end_sample]
 
-                # Save the segment as a new file
                 output_audio_path = os.path.join(output_dir, f"test_segment_{i+1}.wav")
                 sf.write(output_audio_path, segment_audio, sr)
                 print(f"Exported test segment {i+1} to {output_audio_path}")
@@ -306,11 +296,9 @@ class EnhancedBatchTrainer:
         except Exception as e:
             print(f"Error exporting test segments: {e}")
 
-        # Return the training segments for further processing
         return train_segments
 
 
-# Usage example
 if __name__ == "__main__":
     trainer = EnhancedBatchTrainer()
     training_results = trainer.train_all_users()

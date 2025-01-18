@@ -51,13 +51,12 @@ class ModelManager:
             model = hmm.GaussianHMM(n_components=n_components, covariance_type=covariance_type, n_iter=n_iter)
             try:
                 model.fit(features)
-                return model.score(features)  # Log-likelihood
+                return model.score(features)
             except Exception:
                 return float("-inf")
 
-        # Optimize parameters using Optuna
         study = optuna.create_study(direction="maximize")
-        study.optimize(objective, n_trials=30)  # Adjust n_trials as needed
+        study.optimize(objective, n_trials=30)
 
         best_params = study.best_params
         best_model = hmm.GaussianHMM(
@@ -68,7 +67,7 @@ class ModelManager:
 
         try:
             best_model.fit(features)
-            self.save_model(user_id, best_model)  # Save the best model
+            self.save_model(user_id, best_model)
             return True
         except Exception as e:
             print(f"Error training model for user {user_id}: {e}")

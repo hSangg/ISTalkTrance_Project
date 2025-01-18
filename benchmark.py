@@ -35,7 +35,6 @@ def time_to_seconds(time_str: str) -> float:
     except ValueError as e:
         raise ValueError(f"Invalid time format in '{time_str}': {str(e)}")
 
-
 def extract_mfcc_librosa(audio_segment: np.ndarray, sr: int = 22050) -> np.ndarray:
     """Extract MFCC features with deltas and delta-deltas."""
     try:
@@ -56,7 +55,6 @@ def extract_mfcc_librosa(audio_segment: np.ndarray, sr: int = 22050) -> np.ndarr
         print(f"Error in MFCC extraction: {str(e)}")
         return np.empty((0, 39))
 
-
 def load_models(models_dir: str) -> Dict[str, hmm.GaussianHMM]:
     """Load HMM models from the specified directory."""
     models = {}
@@ -69,7 +67,6 @@ def load_models(models_dir: str) -> Dict[str, hmm.GaussianHMM]:
             except Exception as e:
                 print(f"Error loading model {model_file}: {str(e)}")
     return models
-
 
 def process_audio_segment(
     y: np.ndarray, sr: int, start: float, end: float
@@ -222,7 +219,6 @@ def print_evaluation_results(results: Dict[str, Any]) -> None:
         print(f"Precision: {metrics['precision']:.2%}")
         print(f"Recall: {metrics['recall']:.2%}")
         print(f"F1-score: {metrics['f1_score']:.2%}")
-
 
 if __name__ == "__main__":
     train_voice_dir = "train_voice"
