@@ -21,7 +21,6 @@ class VoiceSimilarityChecker:
         self.sample_rate = sample_rate
         self.n_mfcc = n_mfcc
         
-        # Load all models
         self.models = self.load_all_models()
 
     def load_all_models(self) -> Dict:
@@ -54,10 +53,8 @@ class VoiceSimilarityChecker:
             np.ndarray: Extracted features
         """
         try:
-            # Load audio
             audio, sr = librosa.load(audio_path, sr=self.sample_rate)
             
-            # Extract features
             mfcc = librosa.feature.mfcc(
                 y=audio, 
                 sr=sr, 
@@ -84,7 +81,6 @@ class VoiceSimilarityChecker:
         Returns:
             Dict with comparison results
         """
-        # Extract features for both files
         features1 = self.extract_features(file1_path)
         features2 = self.extract_features(file2_path)
         
@@ -94,17 +90,13 @@ class VoiceSimilarityChecker:
                 "error": "Feature extraction failed"
             }
         
-        # Compute log likelihoods
         results = []
         for user_id, model in self.models.items():
             try:
-                # Score features of first file against model
                 score1 = model.score(features1)
                 
-                # Score features of second file against same model
                 score2 = model.score(features2)
                 
-                # Compute average score
                 avg_score = (score1 + score2) / 2
                 
                 results.append({
@@ -114,15 +106,11 @@ class VoiceSimilarityChecker:
             except Exception as e:
                 print(f"Scoring error for {user_id}: {e}")
         
-        # Sort results by score
         results.sort(key=lambda x: x['score'], reverse=True)
         
-        # Determine similarity
         if results:
             best_match = results[0]
-            # You can adjust this threshold based on your specific use case
-            is_similar = best_match['score'] > -1000  # Example threshold
-            
+            is_similar = best_match['score'] > -1000  
             return {
                 "similar": is_similar,
                 "best_match": best_match['user_id'],
@@ -134,25 +122,19 @@ class VoiceSimilarityChecker:
             "error": "No valid comparisons"
         }
 
-# Example usage
 def main():
-    # Initialize the comparison tool
     checker = VoiceSimilarityChecker()
     
-    # Paths to your two audio files to compare
     file1 = 'test/file1.wav'
     file2 = 'test/file2.wav'
     
-    # Compare the files
     comparison_result = checker.compare_audio_files(file1, file2)
     
-    # Print results
     print("\nVoice Similarity Comparison:")
     print(f"Are files similar? {comparison_result.get('similar', False)}")
     if comparison_result.get('best_match'):
         print(f"Best match: {comparison_result['best_match']}")
     
-    # Print detailed scores if available
     if comparison_result.get('scores'):
         print("\nDetailed Scores:")
         for result in comparison_result['scores']:
