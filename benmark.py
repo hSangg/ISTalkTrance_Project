@@ -1,6 +1,6 @@
-import os
-import numpy as np
 import librosa
+import numpy as np
+import os
 import joblib
 from hmmlearn import hmm
 import soundfile as sf
@@ -17,22 +17,18 @@ def time_to_seconds(time_str: str) -> float:
         Float value representing total seconds
     """
     try:
-        # Split time string into parts
         parts = time_str.strip().split(':')
         
         if len(parts) != 3:
             raise ValueError(f"Expected h:mm:ss format with 3 parts, got {len(parts)} parts")
             
-        # Convert parts to integers/floats
         hours = float(parts[0])
         minutes = float(parts[1])
         seconds = float(parts[2])
         
-        # Validate ranges
         if minutes >= 60 or seconds >= 60:
             raise ValueError(f"Invalid minutes/seconds value. Minutes: {minutes}, Seconds: {seconds}")
             
-        # Calculate total seconds
         total_seconds = hours * 3600 + minutes * 60 + seconds
         return total_seconds
         
@@ -43,7 +39,6 @@ def time_to_seconds(time_str: str) -> float:
 def extract_mfcc_librosa(audio_segment: np.ndarray, sr: int = 22050) -> np.ndarray:
     """Extract MFCC features with deltas and delta-deltas."""
     try:
-        # Extract MFCC, delta, and delta-delta
         mfcc = librosa.feature.mfcc(
             y=audio_segment,
             sr=sr,
@@ -55,13 +50,11 @@ def extract_mfcc_librosa(audio_segment: np.ndarray, sr: int = 22050) -> np.ndarr
         )
         delta = librosa.feature.delta(mfcc)
         delta_delta = librosa.feature.delta(mfcc, order=2)
-        
-        # Combine MFCC, delta, and delta-delta
-        features = np.vstack([mfcc, delta, delta_delta]).T  # (Frames, Features)
+        features = np.vstack([mfcc, delta, delta_delta]).T 
         return features
     except Exception as e:
         print(f"Error in MFCC extraction: {str(e)}")
-        return np.empty((0, 39))  # Return consistent empty array
+        return np.empty((0, 39))
 
 
 def load_models(models_dir: str) -> Dict[str, hmm.GaussianHMM]:
@@ -89,12 +82,11 @@ def process_audio_segment(
         return np.array([]), False
 
     segment_audio = y[start_sample:end_sample]
-    if len(segment_audio) < sr * 0.1:  # Skip segments shorter than 100ms
+    if len(segment_audio) < sr * 0.1:
         print("Segment too short to process.")
         return np.array([]), False
 
     return segment_audio, True
-
 
 def calculate_speaker_metrics(
     confusion_matrix: np.ndarray, speaker_map: Dict[str, int]
@@ -119,7 +111,6 @@ def calculate_speaker_metrics(
             'f1_score': f1_score,
         }
     return metrics
-
 
 def evaluate_speaker_recognition(
     train_voice_dir: str, models_dir: str
@@ -151,7 +142,7 @@ def evaluate_speaker_recognition(
 
         try:
             y, sr = sf.read(wav_file)
-            if y.ndim > 1:  # Ensure mono audio
+            if y.ndim > 1: 
                 y = librosa.to_mono(y.T)
                 
             with open(script_file, 'r', encoding='utf-8') as f:
@@ -166,7 +157,6 @@ def evaluate_speaker_recognition(
                         end = time_to_seconds(parts[1])
                         speaker = parts[2]
                         
-                        # Basic validation
                         if end <= start:
                             errors.append(f"Line {line_num} in {folder}: End time {end} not after start time {start}")
                             continue
@@ -220,7 +210,6 @@ def evaluate_speaker_recognition(
         'skipped_segments': skipped_segments,
         'errors': errors
     }
-
 
 def print_evaluation_results(results: Dict[str, Any]) -> None:
     """Print formatted evaluation results."""
