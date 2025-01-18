@@ -118,6 +118,7 @@ def evaluate_speaker_recognition(
         raise ValueError("No valid models found in the specified directory.")
 
     speaker_map = {speaker: idx for idx, speaker in enumerate(models.keys())}
+    
     confusion_matrix = np.zeros((len(models), len(models)))
     total_segments = 0
     correct_predictions = 0
@@ -125,6 +126,8 @@ def evaluate_speaker_recognition(
     errors = []
 
     for folder in os.listdir(train_voice_dir):
+        print(":::::", folder)
+        
         folder_path = os.path.join(train_voice_dir, folder)
         if not os.path.isdir(folder_path):
             continue
@@ -153,6 +156,7 @@ def evaluate_speaker_recognition(
                         start = time_to_seconds(parts[0])
                         end = time_to_seconds(parts[1])
                         speaker = parts[2]
+                        print("speaker::::", speaker)
                         
                         if end <= start:
                             errors.append(f"Line {line_num} in {folder}: End time {end} not after start time {start}")
