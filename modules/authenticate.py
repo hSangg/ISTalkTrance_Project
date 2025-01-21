@@ -19,17 +19,25 @@ class VoiceAuthenticator:
                 all_features.append(features)
             
             combined_features = np.concatenate(all_features)
-            success = self.model_manager.train_model(user_id, combined_features)
+            result = self.model_manager.train_model(user_id, combined_features)
             
-            return {
-                "success": success,
-                "message": f"Model {'trained successfully' if success else 'training failed'} for user {user_id}",
-            }
-            
+            if result["success"]:
+                return {
+                    "success": True,
+                    "message": f"Model trained successfully for user {user_id}",
+                    "cv_scores": result["cv_scores"],
+                    "best_params": result["best_params"]
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.get("error", "Unknown error during training")
+                }
+                
         except Exception as e:
             return {
                 "success": False,
-                "error": str(e),
+                "error": str(e)
             }
 
     def authenticate(self, audio_bytes):

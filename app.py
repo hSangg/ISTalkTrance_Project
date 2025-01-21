@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify
 from modules.authenticate import VoiceAuthenticator
-from modules.diarization import AutoSpectralDiarizer
 from modules.config import Config
 from modules.batch_trainer import BatchTrainer
 import os
@@ -17,7 +16,6 @@ from train import EnhancedBatchTrainer
 
 authenticator = VoiceAuthenticator()
 batch_trainer = BatchTrainer()
-diarizer = AutoSpectralDiarizer()
 
 @app.route('/train', methods=['POST'])
 def train():
@@ -105,7 +103,6 @@ def train_batch():
             "error": str(e),
         }), 500
 
-
 @app.route('/authenticate', methods=['POST'])
 def authenticate():
     if not request.files:
@@ -127,53 +124,6 @@ def authenticate():
 
     except StopIteration:
         return jsonify({"error": "No files in the request"}), 400
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-    
-@app.route('/diarization', methods=['POST'])
-def diarization():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-
-    try:
-        # Create a temporary file to save the uploaded audio
-        temp_dir = "temp_audio"
-        os.makedirs(temp_dir, exist_ok=True)
-        temp_path = os.path.join(temp_dir, file.filename)
-        file.save(temp_path)
-        
-        OUTPUT_DIR = "separated_speakers"
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        
-        diarizer = AutoSpectralDiarizer()
-
-        # Process the audio file
-        speaker_audio, speaker_stats = diarizer.process_audio(temp_path, OUTPUT_DIR)
-
-        # Clean up temporary file
-        os.remove(temp_path)
-
-        # Convert stats to serializable format
-        speaker_stats_serializable = {
-            speaker_id: {
-                key: float(value) if isinstance(value, np.float32) else value
-                for key, value in stats.items()
-            }
-            for speaker_id, stats in speaker_stats.items()
-        }
-
-        return jsonify({
-            "success": True, 
-            "stats": speaker_stats_serializable,
-            "output_files": [f for f in os.listdir(OUTPUT_DIR) if f.endswith('.wav')]
-        }), 200
     except Exception as e:
         return jsonify({
             "success": False,
