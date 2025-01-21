@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from modules.authenticate import VoiceAuthenticator
-from modules.diarization import AutoSpectralDiarizer
+# from modules.diarization import AutoSpectralDiarizer
 from modules.config import Config
 from modules.batch_trainer import BatchTrainer
 import os
@@ -17,7 +17,7 @@ from train import EnhancedBatchTrainer
 
 authenticator = VoiceAuthenticator()
 batch_trainer = BatchTrainer()
-diarizer = AutoSpectralDiarizer()
+# diarizer = AutoSpectralDiarizer()
 
 @app.route('/train', methods=['POST'])
 def train():

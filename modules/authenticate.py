@@ -4,6 +4,7 @@ from .config import Config
 import numpy as np
 
 class VoiceAuthenticator:
+    
     def __init__(self):
         self.model_manager = ModelManager()
         self.feature_extractor = FeatureExtractor()
