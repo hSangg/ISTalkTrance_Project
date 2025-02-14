@@ -141,64 +141,6 @@ class EnhancedBatchTrainer:
             print(f"Feature extraction error: {e}")
             return {}
 
-
-    def train_user_model(self, user_dir: str) -> Dict:
-        """
-        Train separate models for each label in the user's data
-
-        Args:
-            user_dir (str): Directory containing user's audio and script
-
-        Returns:
-            Dict with training results
-        """
-        try:
-            # Find raw audio and timestamp script
-            raw_audio = os.path.join(user_dir, 'raw.wav')
-            script_file = [f for f in os.listdir(user_dir) if f.endswith('.txt')][0]
-            script_path = os.path.join(user_dir, script_file)
-            
-            # Parse timestamp script
-            segments = self.parse_timestamp_script(script_path)
-            
-            # Extract features
-            label_features = self.extract_segmented_features(raw_audio, segments)
-            
-            results = {}
-            for label, features in label_features.items():
-                if len(features) == 0:
-                    results[label] = {
-                        'success': False,
-                        'error': f'No features extracted for label {label}'
-                    }
-                    continue
-                
-                # Train HMM model
-                model = hmm.GaussianHMM(
-                    n_components=self.hmm_components, 
-                    covariance_type='diag', 
-                    n_iter=self.hmm_iterations
-                )
-                model.fit(features)
-                
-                # Save model
-                model_path = os.path.join('models', f'{label}_model.pkl')
-                joblib.dump(model, model_path)
-                
-                results[label] = {'success': True, 'model_path': model_path}
-            
-            return {
-                'success': True,
-                'user_id': os.path.basename(user_dir),
-                'results': results
-            }
-        except Exception as e:
-            return {
-                'success': False,
-                'user_id': os.path.basename(user_dir),
-                'error': str(e)
-            }
-
     def train_user_model(self, user_dir: str) -> Dict:
         """
         Train models for a specific user using the first 80% of segments for training
