@@ -9,6 +9,7 @@ from .config import Config
 class ModelManager:
     def __init__(self, n_splits=5):
         self.models = {}
+        self.load_all_models()
         self.n_splits = n_splits
         
     def save_model(self, user_id, model, cv_scores=None):
@@ -27,17 +28,24 @@ class ModelManager:
             return False
 
     def load_model(self, user_id):
-        """Load a specific model and its CV scores from disk"""
+        """Load a specific model from disk"""
         try:
             model_path = os.path.join(Config.MODELS_DIR, f'{user_id}_model.pkl')
             if os.path.exists(model_path):
-                model_data = joblib.load(model_path)
-                self.models[user_id] = model_data['model']
+                self.models[user_id] = joblib.load(model_path)
                 return True
             return False
         except Exception as e:
-            print(f"Error loading model for user {user_id}: {e}")
             return False
+        
+    def load_all_models(self):
+        """Load all models from disk"""
+        self.models = {}
+        if os.path.exists(Config.MODELS_DIR):
+            for filename in os.listdir(Config.MODELS_DIR):
+                if filename.endswith('_model.pkl'):
+                    user_id = filename.replace('_model.pkl', '')
+                    self.load_model(user_id)
 
     def cross_validate_model(self, model, features):
         """Perform cross-validation for a given model configuration"""

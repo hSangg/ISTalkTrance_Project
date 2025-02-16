@@ -12,7 +12,7 @@ import io
 app = Flask(__name__)
 
 Config.setup()
-from train import EnhancedBatchTrainer
+from modules.train import EnhancedBatchTrainer
 
 authenticator = VoiceAuthenticator()
 batch_trainer = BatchTrainer()
