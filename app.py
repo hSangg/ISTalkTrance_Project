@@ -1,10 +1,12 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Blueprint
 from modules.authenticate import VoiceAuthenticator
 from modules.config import Config
 from modules.batch_trainer import BatchTrainer
+from werkzeug.utils import secure_filename
+from modules.qcnn_trainer import QCNNTrainer
+from modules.qcnn_tester import QCNNTester
 import os
-import numpy as np
-
+from typing import Tuple, Dict, Any
 import librosa
 import numpy as np
 import io
@@ -53,6 +55,54 @@ def train():
             "error": str(e)
         }), 500
 
+@app.route('/train/qcnn', methods=['POST'])
+def train_qcnn():
+    try:
+        user_id = request.form.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'user_id is required'}), 400
+            
+        if 'audio_file' not in request.files or 'script_file' not in request.files:
+            return jsonify({'error': 'Both audio and script files are required'}), 400
+            
+        audio_file = request.files['audio_file']
+        script_file = request.files['script_file']
+        
+        if not allowed_file(audio_file.filename) or not allowed_file(script_file.filename):
+            return jsonify({'error': 'Invalid file type'}), 400
+            
+        upload_dir = os.path.join("uploads", secure_filename(user_id))
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        audio_path = os.path.join(upload_dir, secure_filename(audio_file.filename))
+        script_path = os.path.join(upload_dir, secure_filename(script_file.filename))
+        
+        audio_file.save(audio_path)
+        script_file.save(script_path)
+        
+        trainer = QCNNTrainer()
+        result = trainer.train_model(user_id, audio_path, script_path)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def allowed_file(filename: str) -> bool:
+    ALLOWED_EXTENSIONS = {'wav', 'txt'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/test/qcnn', methods=['POST'])
+def test_qcnn():
+    user_id = request.form['user_id']
+    audio_file = request.files['test_audio']
+    test_audio_path = os.path.join("uploads", "test_audio.wav")
+    audio_file.save(test_audio_path)
+    
+    tester = QCNNTester(user_id)
+    label = tester.predict_speaker(test_audio_path)
+    
+    return jsonify({"predicted_label": label})
 
 @app.route('/train/status', methods=['GET'])
 def training_status():
@@ -142,5 +192,4 @@ def list_models():
         }), 500
     
 if __name__ == '__main__':
-    app.run(debug=True)
-    
+    app.run(debug=False)

@@ -5,7 +5,9 @@ from typing import Dict, List, Union
 from hmmlearn import hmm
 import joblib
 import soundfile as sf
-
+from sklearn.model_selection import KFold
+import numpy as np
+import optuna
 
 class EnhancedBatchTrainer:
     def __init__(self, 
@@ -13,7 +15,8 @@ class EnhancedBatchTrainer:
                  sample_rate=16000, 
                  n_mfcc=13, 
                  hmm_components=5, 
-                 hmm_iterations=100):
+                 hmm_iterations=100,
+                 n_trials: int = 5):
         """
         Enhanced batch trainer for voice authentication
 
@@ -29,7 +32,8 @@ class EnhancedBatchTrainer:
         self.n_mfcc = n_mfcc
         self.hmm_components = hmm_components
         self.hmm_iterations = hmm_iterations
-        
+        self.n_trials = n_trials
+
         # Ensure models directory exists
         os.makedirs('models', exist_ok=True)
 
@@ -141,16 +145,52 @@ class EnhancedBatchTrainer:
             print(f"Feature extraction error: {e}")
             return {}
 
-    def train_user_model(self, user_dir: str) -> Dict:
+    def objective(self, trial, features: np.ndarray, n_splits: int = 5):
         """
-        Train models for a specific user using the first 80% of segments for training
-        and the last 20% for testing.
+        Optuna objective function for optimizing HMM parameters
+        """
+        # Define hyperparameter search space
+        n_components = trial.suggest_int('n_components', 2, 10)
+        covariance_type = trial.suggest_categorical('covariance_type', 
+                                                  ['diag', 'spherical', 'tied', 'full'])
+        n_iter = trial.suggest_int('n_iter', 50, 200)
+        
+        # Cross validation
+        kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+        scores = []
+        
+        for train_idx, test_idx in kf.split(features):
+            train_features = features[train_idx]
+            test_features = features[test_idx]
+            
+            model = hmm.GaussianHMM(
+                n_components=n_components,
+                covariance_type=covariance_type,
+                n_iter=n_iter,
+                random_state=42
+            )
+            
+            try:
+                model.fit(train_features)
+                score = model.score(test_features)
+                scores.append(score)
+            except Exception as e:
+                # Return a very low score if model fitting fails
+                return float('-inf')
+        
+        return np.mean(scores)
+
+    def train_user_model(self, user_dir: str, n_splits: int = 5) -> Dict:
+        """
+        Train models for a specific user using Optuna for hyperparameter optimization
+        and k-fold cross validation for evaluation.
 
         Args:
             user_dir (str): Directory containing the user's audio and script
+            n_splits (int): Number of folds for cross-validation (default: 5)
 
         Returns:
-            Dict with training results
+            Dict with training results including cross-validation scores and best parameters
         """
         try:
             raw_audio = os.path.join(user_dir, 'raw.wav')
@@ -158,11 +198,11 @@ class EnhancedBatchTrainer:
             script_path = os.path.join(user_dir, script_file)
             segments = self.parse_timestamp_script(script_path)
 
-            train_segments = self.extract_and_export_20_percent(raw_audio, segments, output_dir="20_percent_test")
-
-            label_features = self.extract_segmented_features(raw_audio, train_segments)
-
             results = {}
+            
+            # Process each label separately
+            label_features = self.extract_segmented_features(raw_audio, segments)
+            
             for label, features in label_features.items():
                 if len(features) == 0:
                     results[label] = {
@@ -171,18 +211,55 @@ class EnhancedBatchTrainer:
                     }
                     continue
 
-
-                model = hmm.GaussianHMM(
-                    n_components=self.hmm_components,
-                    covariance_type='diag',
-                    n_iter=self.hmm_iterations
+                # Create a new study for this label
+                study = optuna.create_study(direction='maximize')
+                study.optimize(lambda trial: self.objective(trial, features, n_splits), 
+                             n_trials=self.n_trials)
+                
+                # Get best parameters
+                best_params = study.best_params
+                
+                # Train final model with best parameters on all data
+                final_model = hmm.GaussianHMM(
+                    n_components=best_params['n_components'],
+                    covariance_type=best_params['covariance_type'],
+                    n_iter=best_params['n_iter'],
+                    random_state=42
                 )
-                model.fit(features)
-
+                final_model.fit(features)
+                
+                # Save the final model
                 model_path = os.path.join('models', f'{label}_model.pkl')
-                joblib.dump(model, model_path)
-
-                results[label] = {'success': True, 'model_path': model_path}
+                joblib.dump(final_model, model_path)
+                
+                # Evaluate with cross-validation using best parameters
+                kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+                cv_scores = []
+                
+                for train_idx, test_idx in kf.split(features):
+                    train_features = features[train_idx]
+                    test_features = features[test_idx]
+                    
+                    model = hmm.GaussianHMM(
+                        n_components=best_params['n_components'],
+                        covariance_type=best_params['covariance_type'],
+                        n_iter=best_params['n_iter'],
+                        random_state=42
+                    )
+                    model.fit(train_features)
+                    score = model.score(test_features)
+                    cv_scores.append(score)
+                
+                # Store results for this label
+                results[label] = {
+                    'success': True,
+                    'model_path': model_path,
+                    'best_parameters': best_params,
+                    'best_trial_score': study.best_value,
+                    'cv_scores': cv_scores,
+                    'mean_cv_score': np.mean(cv_scores),
+                    'std_cv_score': np.std(cv_scores)
+                }
 
             return {
                 'success': True,
