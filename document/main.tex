@@ -1,38 +1,41 @@
 \documentclass{article}
-\usepackage{amsmath}
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
 \usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{cite}
 
 \begin{document}
 
-\title{Sample \LaTeX\ Document}
-\author{John Doe}
-\date{\today}
-
+\title{X-Vector trong Trích Xuất Đặc Trưng Giọng Nói}
+\author{}
+\date{}
 \maketitle
 
-\section{Introduction}
-This is a sample document created using \LaTeX. It includes sections, equations, and images.
+\section{Tổng Quan về X-Vector}
 
-\section{Mathematical Equations}
-An example of an equation:
-\begin{equation}
-    E = mc^2
-\end{equation}
+X-Vector được giới thiệu bởi Snyder et al. (2018) như một phương pháp dựa trên mạng nơ-ron sâu để trích xuất đặc trưng giọng nói. Mô hình này bao gồm một mạng nơ-ron sâu (DNN) được huấn luyện để học biểu diễn đặc trưng từ các đoạn âm thanh với độ dài khác nhau.
 
-Another example using the align :
-\begin{align}
-    a^2 + b^2 & = c^2                                \\
-    x         & = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
-\end{align}
+\subsection{Kiến Trúc X-Vector}
 
-\section{Inserting Images}
-Below is an example of how to include an image:
+Mô hình X-Vector được xây dựng dựa trên một mạng DNN có cấu trúc chính gồm các thành phần:
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.5\textwidth]{example-image}
-    \caption{Sample Image}
-    \label{fig:sample}
-\end{figure}
+\begin{itemize}
+    \item \textbf{Layer tiền xử lý}: Biến đổi đầu vào bằng các bộ lọc để tạo ra biểu diễn đặc trưng cục bộ.
+    \item \textbf{Layer frame-level}: Một chuỗi các lớp CNN hoặc TDNN (Time Delay Neural Network) trích xuất đặc trưng từ từng khung âm thanh.
+    \item \textbf{Layer thống kê}: Tổng hợp thông tin từ toàn bộ đoạn giọng nói để tạo ra một biểu diễn cố định.
+    \item \textbf{Layer speaker embedding}: Mã hóa thông tin giọng nói dưới dạng vector X-Vector có kích thước cố định.
+\end{itemize}
+
+\subsection{Quy Trình Huấn Luyện}
+
+Mô hình X-Vector được huấn luyện trên dữ liệu giọng nói lớn, sử dụng chức năng mất mát softmax để phân loại người nói. Sau khi huấn luyện, các vector đặc trưng được rút trích từ lớp embedding để sử dụng trong các tác vụ khác nhau.
+
+\section{Tài Liệu Tham Khảo}
+
+\begin{thebibliography}{9}
+    \bibitem{Snyder2018} D. Snyder, D. Garcia-Romero, G. Sell, D. Povey, and S. Khudanpur, \textquotedblleft X-vectors: Robust DNN embeddings for speaker recognition,\textquotedblright \emph{IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)}, 2018.
+\end{thebibliography}
 
 \end{document}
+
