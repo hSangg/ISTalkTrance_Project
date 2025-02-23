@@ -5,3 +5,9 @@
 /train_data
 /uploads
 /__pycache__
+document/main.synctex.gz
+document/main.pdf
+document/main.log
+document/main.fls
+document/main.fdb_latexmk
+document/main.aux
