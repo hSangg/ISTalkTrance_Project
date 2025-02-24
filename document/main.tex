@@ -4,17 +4,57 @@
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{cite}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows}
+
+\tikzstyle{startstop} = [rectangle, rounded corners, minimum width=2.5cm, minimum height=1cm,text centered, draw=black]
+\tikzstyle{process} = [rectangle, minimum width=2.5cm, minimum height=1cm, text centered, draw=black]
+\tikzstyle{arrow} = [thick,->,>=stealth]
 
 \begin{document}
 
-\title{X-Vector trong Trích Xuất Đặc Trưng Giọng Nói}
+\title{Lí thuyết IS-Talk-Trance}
 \author{}
 \date{}
 \maketitle
 
+% MFCC
+\section{Trích Xuất MFCC}
+Quy trình trích xuất MFCC bao gồm nhiều bước tiền xử lý để chuyển đổi tín hiệu giọng nói từ miền thời gian sang miền tần số và sau đó trích xuất các đặc trưng cepstral.
+
+\subsection{Giới thiệu}
+Mel-Frequency Cepstral Coefficients (MFCC) là một trong những phương pháp phổ biến nhất để trích xuất đặc trưng giọng nói trong các hệ thống nhận dạng giọng nói tự động (ASR). MFCC mô phỏng cách con người cảm nhận âm thanh bằng cách áp dụng thang đo Mel, giúp làm nổi bật các đặc trưng quan trọng trong tín hiệu giọng nói \cite{davis1980comparison}.
+
+\subsection{Các Bước Trích Xuất MFCC}
+\subsubsection{Chuyển đổi A/D}
+Tín hiệu giọng nói ban đầu là một tín hiệu tương tự và cần được chuyển đổi sang dạng số bằng cách lấy mẫu (sampling) và lượng tử hóa (quantization) \cite{oppenheim1999discrete}.
+
+\subsubsection{Tiền xử lý (Pre-emphasis)}
+Tín hiệu đầu vào được lọc qua bộ lọc high-pass để nhấn mạnh các tần số cao, giúp cân bằng phổ và giảm tác động của tiếng ồn nền.
+
+\subsubsection{Cửa sổ (Windowing)}
+Cửa sổ Hamming hoặc Hanning được áp dụng để giảm hiệu ứng rò rỉ phổ (spectral leakage) trước khi thực hiện phân tích tần số.
+
+\subsubsection{Biến đổi Fourier (DFT)}
+Biến đổi Fourier rời rạc (DFT) được sử dụng để chuyển tín hiệu từ miền thời gian sang miền tần số, giúp trích xuất thông tin phổ \cite{rabiner1993fundamentals}.
+
+\subsubsection{Bộ lọc Mel (Mel Filterbank)}
+Dải tần số được ánh xạ sang thang đo Mel, giúp mô phỏng cách con người nhận thức âm thanh với độ phân giải cao hơn ở tần số thấp.
+
+\subsubsection{Biến đổi Log}
+Áp dụng hàm logarit lên phổ Mel để nén dải động và làm cho phổ có đặc tính gần hơn với cách tai người cảm nhận âm thanh.
+
+\subsubsection{Biến đổi nghịch IDFT (Cepstral Analysis)}
+DCT (Discrete Cosine Transform) được sử dụng để chuyển phổ log-Mel về miền cepstral, giúp giảm mối tương quan giữa các đặc trưng.
+
+\subsubsection{Trích Xuất Đặc Trưng Động}
+Tính đạo hàm bậc nhất ($\Delta$) và bậc hai ($\Delta^2$) của MFCC để mô tả sự thay đổi của đặc trưng theo thời gian, làm tăng độ chính xác của hệ thống nhận dạng giọng nói.
+
+% X-VECTOR
 \section{Tổng Quan về X-Vector}
 
-X-Vector được giới thiệu bởi Snyder et al. (2018) như một phương pháp dựa trên mạng nơ-ron sâu để trích xuất đặc trưng giọng nói. Mô hình này bao gồm một mạng nơ-ron sâu (DNN) được huấn luyện để học biểu diễn đặc trưng từ các đoạn âm thanh với độ dài khác nhau.
+X-Vector được giới thiệu bởi Snyder et al. (2018) như một phương pháp dựa trên mạng nơ-ron sâu để trích xuất đặc trưng giọng nói.
+Mô hình này bao gồm một mạng nơ-ron sâu (DNN) được huấn luyện để học biểu diễn đặc trưng từ các đoạn âm thanh với độ dài khác nhau.
 
 \subsection{Kiến Trúc X-Vector}
 
@@ -29,13 +69,14 @@ Mô hình X-Vector được xây dựng dựa trên một mạng DNN có cấu t
 
 \subsection{Quy Trình Huấn Luyện}
 
-Mô hình X-Vector được huấn luyện trên dữ liệu giọng nói lớn, sử dụng chức năng mất mát softmax để phân loại người nói. Sau khi huấn luyện, các vector đặc trưng được rút trích từ lớp embedding để sử dụng trong các tác vụ khác nhau.
-
-\section{Tài Liệu Tham Khảo}
+Mô hình X-Vector được huấn luyện trên dữ liệu giọng nói lớn, sử dụng chức năng mất mát softmax để phân loại người nói.
+Sau khi huấn luyện, các vector đặc trưng được rút trích từ lớp embedding để sử dụng trong các tác vụ khác nhau.
 
 \begin{thebibliography}{9}
-    \bibitem{Snyder2018} D. Snyder, D. Garcia-Romero, G. Sell, D. Povey, and S. Khudanpur, \textquotedblleft X-vectors: Robust DNN embeddings for speaker recognition,\textquotedblright \emph{IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)}, 2018.
+    \bibitem{Davis1980} S. B. Davis and P. Mermelstein, \textquotedblleft Comparison of parametric representations for monosyllabic word recognition in continuously spoken sentences,\textquotedblright \emph{IEEE Transactions on Acoustics, Speech, and Signal Processing}, vol. 28, no. 4, pp. 357–366, 1980.
+    \bibitem{davis1980comparison} S. B. Davis and P. Mermelstein, ``Comparison of parametric representations for monosyllabic word recognition in continuously spoken sentences,'' \emph{IEEE Transactions on Acoustics, Speech, and Signal Processing}, vol. 28, no. 4, pp. 357–366, 1980.
+    \bibitem{oppenheim1999discrete} A. V. Oppenheim and R. W. Schafer, \emph{Discrete-time signal processing}, Prentice Hall, 1999.
+    \bibitem{rabiner1993fundamentals} L. Rabiner and B. H. Juang, \emph{Fundamentals of speech recognition}, Prentice Hall, 1993.
 \end{thebibliography}
 
 \end{document}
-
