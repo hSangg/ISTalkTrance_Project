@@ -42,7 +42,7 @@ def train_hmm_for_speaker(speaker, xvectors):
     model = hmm.GaussianHMM(n_components=3, covariance_type="diag", n_iter=100)
     model.fit(xvectors)
     os.makedirs("models", exist_ok=True)
-    joblib.dump(model, f"models/hmm_{speaker}.pkl")
+    joblib.dump(model, f"models/{speaker}_model.pkl")
     print(f"✅ Đã lưu mô hình HMM cho {speaker}")
 
 def load_hmm_model(speaker):
@@ -70,8 +70,3 @@ xvector_dict = extract_xvectors(audio_file, zip(segments, speakers), classifier)
 # Huấn luyện mô hình HMM
 for speaker, xvectors in xvector_dict.items():
     train_hmm_for_speaker(speaker, xvectors)
-
-# Dự đoán
-for speaker, xvectors in xvector_dict.items():
-    predictions = predict_speaker(speaker, xvectors)
-    print(f"🔍 Dự đoán cho {speaker}: {predictions}")
