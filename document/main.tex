@@ -1,15 +1,15 @@
 \documentclass{article}
-\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb, graphicx, cite}
 \usepackage[T5]{fontenc}
-\usepackage{graphicx}
-\usepackage{amsmath}
-\usepackage{cite}
+\usepackage[utf8]{inputenc}
+\usepackage{qcircuit}
+
+\title{X-Vector trong Trích Xuất Đặc Trưng Giọng Nói và QCNN}
+\author{}
+\date{}
 
 \begin{document}
 
-\title{X-Vector trong Trích Xuất Đặc Trưng Giọng Nói}
-\author{}
-\date{}
 \maketitle
 
 \section{Tổng Quan về X-Vector}
@@ -30,6 +30,30 @@ Mô hình X-Vector được xây dựng dựa trên một mạng DNN có cấu t
 \subsection{Quy Trình Huấn Luyện}
 
 Mô hình X-Vector được huấn luyện trên dữ liệu giọng nói lớn, sử dụng chức năng mất mát softmax để phân loại người nói. Sau khi huấn luyện, các vector đặc trưng được rút trích từ lớp embedding để sử dụng trong các tác vụ khác nhau.
+
+\section{Mạng Tích Chập Lượng Tử (QCNN)}
+
+Mạng tích chập lượng tử (Quantum Convolutional Neural Network - QCNN) là một phiên bản lượng tử của mạng tích chập (CNN), được thiết kế để xử lý dữ liệu trong môi trường lượng tử. QCNN bao gồm các thành phần chính sau:
+
+\begin{itemize}
+    \item \textbf{Lớp tích chập lượng tử (Quantum Convolution Layer)}: Trích xuất đặc trưng từ trạng thái lượng tử đầu vào bằng cách áp dụng các cổng lượng tử như cổng Hadamard, cổng Pauli, hoặc cổng kiểm soát (CNOT). Phép tích chập lượng tử được biểu diễn bởi một ma trận unitary $U_{\text{conv}}$:
+    \begin{equation}
+        U_{\text{conv}} | \psi \rangle = | \phi \rangle
+    \end{equation}
+    trong đó $|\psi\rangle$ là trạng thái đầu vào và $|\phi\rangle$ là trạng thái sau tích chập.
+
+    \item \textbf{Lớp gộp lượng tử (Quantum Pooling Layer)}: Giúp giảm số lượng qubit, tương tự như max pooling hoặc average pooling trong CNN. Phép gộp lượng tử sử dụng phép đo qubit hoặc các cổng kiểm soát để loại bỏ thông tin không quan trọng.
+
+    \item \textbf{Lớp kết nối đầy đủ lượng tử (Quantum Fully Connected Layer)}: Kết hợp các đặc trưng đã trích xuất để tạo ra đầu ra cuối cùng. Nó được biểu diễn bởi một ma trận unitary $U_{\text{fc}}$:
+    \begin{equation}
+        U_{\text{fc}} | \psi \rangle = | \psi_{\text{out}} \rangle
+    \end{equation}
+
+    \item \textbf{Phép đo lượng tử (Measurement)}: Sau khi xử lý qua các lớp lượng tử, trạng thái lượng tử được chuyển về dữ liệu cổ điển thông qua phép đo xác suất trạng thái:
+    \begin{equation}
+        P(i) = | \langle i | \psi_{\text{out}} \rangle |^2
+    \end{equation}
+\end{itemize}
 
 \section{Tài Liệu Tham Khảo}
 
