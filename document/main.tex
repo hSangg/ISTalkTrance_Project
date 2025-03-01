@@ -90,11 +90,61 @@ Mạng tích chập lượng tử (Quantum Convolutional Neural Network - QCNN) 
           \end{equation}
 \end{itemize}
 
+\section{Hidden Markov Model}
+HMM là một mô hình xác suất dùng để mô tả một chuỗi các quan sát $O = \{o_1, o_2, ..., o_T\}$ thông qua một tập hợp trạng thái ẩn $Q = \{q_1, q_2, ..., q_N\}$.
+
+Một HMM được định nghĩa bởi ba tham số chính:
+\begin{itemize}
+    \item $A = [a_{ij}]$: Ma trận xác suất chuyển trạng thái, trong đó $a_{ij} = P(q_{t+1} = j \mid q_t = i)$.
+    \item $B = [b_j(o_t)]$: Xác suất quan sát (output probability), trong đó $b_j(o_t) = P(o_t \mid q_t = j)$.
+    \item $\pi = [\pi_i]$: Xác suất ban đầu của trạng thái, $\pi_i = P(q_1 = i)$.
+\end{itemize}
+
+\subsection{Mô hình HMM cho Nhận dạng Giọng Nói}
+Trong ASR, mỗi từ hoặc âm vị có thể được mô hình hóa bằng một HMM riêng lẻ. Khi một chuỗi tín hiệu giọng nói được đưa vào, mục tiêu là tìm ra chuỗi trạng thái $Q^*$ sao cho xác suất quan sát tối đa:
+\begin{equation}
+    Q^* = \arg\max_Q P(O \mid Q, \lambda)
+\end{equation}
+trong đó $\lambda = (A, B, \pi)$ là tham số của HMM.
+
+\subsection{Các thuật toán chính}
+\subsubsection{Thuật toán Viterbi}
+Viterbi là thuật toán quan trọng để tìm chuỗi trạng thái tối ưu nhất dựa trên mô hình HMM. Xác suất tối đa cho trạng thái $j$ tại thời điểm $t$ được tính như sau:
+\begin{equation}
+    \delta_t(j) = \max_i \left[ \delta_{t-1}(i) a_{ij} \right] b_j(o_t)
+\end{equation}
+\subsubsection{Thuật toán Baum-Welch}
+Để huấn luyện HMM, thuật toán Baum-Welch (một biến thể của Expectation-Maximization) được sử dụng để ước lượng tham số:
+\begin{equation}
+    a_{ij} = \frac{\sum_{t=1}^{T-1} P(q_t = i, q_{t+1} = j \mid O, \lambda)}{\sum_{t=1}^{T-1} P(q_t = i \mid O, \lambda)}
+\end{equation}
+
+\section{Mạng Nơ-ron LSTM và X-vector trong Nhận Dạng Giọng Nói}
+LSTM là một biến thể của mạng nơ-ron truy hồi (RNN) giúp khắc phục vấn đề vanishing gradient trong mô hình hóa chuỗi thời gian dài. Công thức cập nhật trạng thái trong LSTM được biểu diễn như sau:
+\begin{align}
+    f_t         & = \sigma(W_f x_t + U_f h_{t-1} + b_f)       \\
+    i_t         & = \sigma(W_i x_t + U_i h_{t-1} + b_i)       \\
+    \tilde{C}_t & = \tanh(W_c x_t + U_c h_{t-1} + b_c)        \\
+    C_t         & = f_t \odot C_{t-1} + i_t \odot \tilde{C}_t \\
+    o_t         & = \sigma(W_o x_t + U_o h_{t-1} + b_o)       \\
+    h_t         & = o_t \odot \tanh(C_t)
+\end{align}
+Trong đó, $f_t, i_t, o_t$ lần lượt là cổng quên, cổng nhập và cổng đầu ra; $C_t$ là trạng thái bộ nhớ; $h_t$ là trạng thái ẩn.
+
+X-vector là phương pháp trích xuất đặc trưng sử dụng mạng DNN/LSTM để mô hình hóa giọng nói \cite{Snyder2018}. Nó bao gồm các lớp FC (Fully Connected) để tạo đặc trưng biểu diễn giọng nói từ cửa sổ tín hiệu âm thanh:
+\begin{equation}
+    x = \text{FC}_4(\text{FC}_3(\text{FC}_2(\text{FC}_1(O))))
+\end{equation}
+Trong đó, $O$ là chuỗi quan sát, và các lớp FC giúp trích xuất đặc trưng có độ phân biệt cao.
+
+
 \begin{thebibliography}{9}
+    \bibitem{Snyder2018} D. Snyder, D. Garcia-Romero, G. Sell, D. Povey, and S. Khudanpur, "X-vectors: Robust DNN embeddings for speaker recognition," \textit{ICASSP}, pp. 5329-5333, 2018.
     \bibitem{Davis1980} S. B. Davis and P. Mermelstein, \textquotedblleft Comparison of parametric representations for monosyllabic word recognition in continuously spoken sentences,\textquotedblright \emph{IEEE Transactions on Acoustics, Speech, and Signal Processing}, vol. 28, no. 4, pp. 357–366, 1980.
     \bibitem{davis1980comparison} S. B. Davis and P. Mermelstein, ``Comparison of parametric representations for monosyllabic word recognition in continuously spoken sentences,'' \emph{IEEE Transactions on Acoustics, Speech, and Signal Processing}, vol. 28, no. 4, pp. 357–366, 1980.
     \bibitem{oppenheim1999discrete} A. V. Oppenheim and R. W. Schafer, \emph{Discrete-time signal processing}, Prentice Hall, 1999.
     \bibitem{rabiner1993fundamentals} L. Rabiner and B. H. Juang, \emph{Fundamentals of speech recognition}, Prentice Hall, 1993.
+    \bibitem{Rabiner1989} L. R. Rabiner, "A tutorial on hidden Markov models and selected applications in speech recognition," \textit{Proceedings of the IEEE}, vol. 77, no. 2, pp. 257-286, 1989.
+    \bibitem{Hinton2012} G. Hinton et al., "Deep neural networks for acoustic modeling in speech recognition: The shared views of four research groups," \textit{IEEE Signal Processing Magazine}, vol. 29, no. 6, pp. 82-97, 2012.
 \end{thebibliography}
-
 \end{document}
