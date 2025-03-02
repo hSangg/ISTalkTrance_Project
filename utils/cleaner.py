@@ -65,7 +65,6 @@ def process_folders(base_folder):
                 file_path = os.path.join(root, file)
                 process_script_file(file_path)
 
-
 def convert_wav_case(base_folder):
     """
     Traverse all folders and subfolders within the base folder.
