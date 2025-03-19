@@ -11,5 +11,9 @@ document/main.log
 document/main.fls
 document/main.fdb_latexmk
 document/main.aux
-train/wav_videos
 /models
+.env
+train/*
+!train/clean.py
+!train/extract.py
+/speechbrain_models
