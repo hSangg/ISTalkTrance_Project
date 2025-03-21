@@ -66,6 +66,66 @@ Mô hình X-Vector được xây dựng dựa trên một mạng DNN có cấu t
 
 Mô hình X-Vector được huấn luyện trên dữ liệu giọng nói lớn, sử dụng chức năng mất mát softmax để phân loại người nói.
 Sau khi huấn luyện, các vector đặc trưng được rút trích từ lớp embedding để sử dụng trong các tác vụ khác nhau.
+
+\section{Tổng Quan về D-Vector}
+\subsection{Giới thiệu}
+Trong các hệ thống nhận dạng tiếng nói tự động (ASR) và nhận dạng người nói, việc trích xuất đặc trưng hiệu quả đóng vai trò quan trọng trong việc tối ưu hóa độ chính xác của mô hình. Các phương pháp truyền thống như Mel-Frequency Cepstral Coefficients (MFCC) hay i-Vector đã được sử dụng rộng rãi trong nhiều năm \cite{dehak2011front}, \cite{davis1980comparison}. Tuy nhiên, với sự phát triển mạnh mẽ của học sâu, các phương pháp mới như X-Vector đã được đề xuất và chứng minh hiệu quả vượt trội trong việc biểu diễn đặc trưng giọng nói \\cite{snyder2018x}.
+
+\subsection{Cơ sở lý thuyết của X-Vector}
+
+X-Vector là một biểu diễn đặc trưng được trích xuất từ mạng nơ-ron sâu, thường dựa trên mô hình mạng tích chập (CNN) hoặc mạng truy hồi (RNN). Phương pháp này sử dụng một mô hình học sâu để chuyển đổi các đoạn âm thanh có độ dài thay đổi thành một vector đặc trưng có độ dài cố định. Điều này giúp hệ thống có thể nhận dạng người nói hoặc phân loại nội dung âm thanh một cách hiệu quả hơn.
+
+\subsubsection{Kiến trúc mạng nơ-ron của X-Vector}
+
+Mô hình X-Vector thường được huấn luyện theo cấu trúc sau:
+
+\begin{itemize}
+    \item \textbf{Lớp đầu vào}: Nhận các khung âm thanh đã được xử lý trước, chẳng hạn như MFCC hoặc filterbank features.
+    \item \textbf{Lớp ẩn}: Bao gồm nhiều lớp tích chập hoặc truy hồi để trích xuất đặc trưng từ tín hiệu giọng nói.
+    \item \textbf{Lớp thống kê}: Tóm tắt thông tin từ toàn bộ chuỗi thời gian bằng cách tính trung bình và phương sai.
+    \item \textbf{Lớp đầu ra}: Tạo ra X-Vector có độ dài cố định, có thể được sử dụng để nhận dạng hoặc phân loại.
+\end{itemize}
+
+\subsection{Quy trình trích xuất X-Vector}
+
+Quy trình trích xuất X-Vector gồm các bước sau:
+
+\begin{enumerate}
+    \item \textbf{Tiền xử lý dữ liệu}: Âm thanh đầu vào được chia thành các khung nhỏ, áp dụng kỹ thuật cửa sổ Hamming và trích xuất các đặc trưng cơ bản như MFCC.
+    \item \textbf{Huấn luyện mạng nơ-ron}: Dữ liệu đầu vào được đưa vào mạng nơ-ron sâu để học các đặc trưng giọng nói quan trọng.
+    \item \textbf{Tóm tắt thống kê}: Các lớp tổng hợp dữ liệu sẽ tính toán trung bình và phương sai của các đặc trưng, tạo thành một biểu diễn cố định.
+    \item \textbf{Tạo X-Vector}: Đầu ra của lớp ẩn cuối cùng được lấy làm vector đặc trưng đại diện cho đoạn giọng nói.
+\end{enumerate}
+
+
+\subsection{Quy trình trích xuất X-Vector}
+
+Quy trình trích xuất X-Vector gồm các bước sau:
+
+\begin{enumerate}
+    \item \textbf{Tiền xử lý dữ liệu}: Âm thanh đầu vào được chia thành các khung nhỏ, áp dụng kỹ thuật cửa sổ Hamming và trích xuất các đặc trưng cơ bản như MFCC.
+    \item \textbf{Huấn luyện mạng nơ-ron}: Dữ liệu đầu vào được đưa vào mạng nơ-ron sâu để học các đặc trưng giọng nói quan trọng.
+    \item \textbf{Tóm tắt thống kê}: Các lớp tổng hợp dữ liệu sẽ tính toán trung bình và phương sai của các đặc trưng, tạo thành một biểu diễn cố định.
+    \item \textbf{Tạo X-Vector}: Đầu ra của lớp ẩn cuối cùng được lấy làm vector đặc trưng đại diện cho đoạn giọng nói.
+\end{enumerate}
+
+
+\subsection{Tổng quan về Wavelet trong trích xuất đặc trưng}
+
+Wavelet transform (biến đổi wavelet) là một công cụ toán học mạnh mẽ giúp phân tích tín hiệu trong cả miền thời gian và tần số \cite{daubechies1992ten}. Trong lĩnh vực xử lý tín hiệu tiếng nói, wavelet được sử dụng để trích xuất các đặc trưng quan trọng giúp cải thiện hiệu suất của các hệ thống ASR \cite{mallat1999wavelet}.
+
+\subsubsection{Biến đổi Wavelet rời rạc (DWT)}
+
+Biến đổi wavelet rời rạc (Discrete Wavelet Transform - DWT) chia tín hiệu thành các hệ số chi tiết và xấp xỉ, giúp nắm bắt thông tin tín hiệu ở các mức phân giải khác nhau. Điều này đặc biệt hữu ích trong xử lý tiếng nói, nơi các tần số khác nhau mang thông tin quan trọng ở các mức độ khác nhau \cite{coifman1995wavelet}.
+
+\subsubsection{Ứng dụng của Wavelet trong ASR}
+
+\begin{itemize}
+    \item \textbf{Giảm nhiễu tín hiệu}: Wavelet giúp lọc bỏ nhiễu bằng cách loại bỏ các hệ số chi tiết không quan trọng.
+    \item \textbf{Trích xuất đặc trưng tần số-thời gian}: Wavelet cho phép trích xuất thông tin quan trọng từ tín hiệu mà các phương pháp truyền thống như Fourier Transform không thể làm được.
+    \item \textbf{Kết hợp với X-Vector}: Wavelet có thể được sử dụng để trích xuất đặc trưng đầu vào cho mô hình X-Vector, giúp cải thiện hiệu suất nhận dạng.
+\end{itemize}
+
 \section{Mạng Tích Chập Lượng Tử (QCNN)}
 
 Mạng tích chập lượng tử (Quantum Convolutional Neural Network - QCNN) là một phiên bản lượng tử của mạng tích chập (CNN), được thiết kế để xử lý dữ liệu trong môi trường lượng tử. QCNN bao gồm các thành phần chính sau:
@@ -139,6 +199,8 @@ Trong đó, $O$ là chuỗi quan sát, và các lớp FC giúp trích xuất đ�
 
 
 \begin{thebibliography}{9}
+    \bibitem{dehak2011front} N. Dehak, P. J. Kenny, R. Dehak, P. Dumouchel, and P. Ouellet, "Front-end factor analysis for speaker verification," \textit{IEEE Transactions on Audio, Speech, and Language Processing}, vol. 19, no. 4, pp. 788-798, 2011.
+    \bibitem{snyder2018x} D. Snyder, D. Garcia-Romero, G. Sell, D. Povey, and S. Khudanpur, "X-Vectors: Robust DNN Embeddings for Speaker Recognition," in \textit{Proceedings of IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)}, 2018, pp. 5329-5333.
     \bibitem{Snyder2018} D. Snyder, D. Garcia-Romero, G. Sell, D. Povey, and S. Khudanpur, "X-vectors: Robust DNN embeddings for speaker recognition," \textit{ICASSP}, pp. 5329-5333, 2018.
     \bibitem{Davis1980} S. B. Davis and P. Mermelstein, \textquotedblleft Comparison of parametric representations for monosyllabic word recognition in continuously spoken sentences,\textquotedblright \emph{IEEE Transactions on Acoustics, Speech, and Signal Processing}, vol. 28, no. 4, pp. 357–366, 1980.
     \bibitem{davis1980comparison} S. B. Davis and P. Mermelstein, ``Comparison of parametric representations for monosyllabic word recognition in continuously spoken sentences,'' \emph{IEEE Transactions on Acoustics, Speech, and Signal Processing}, vol. 28, no. 4, pp. 357–366, 1980.
@@ -146,5 +208,8 @@ Trong đó, $O$ là chuỗi quan sát, và các lớp FC giúp trích xuất đ�
     \bibitem{rabiner1993fundamentals} L. Rabiner and B. H. Juang, \emph{Fundamentals of speech recognition}, Prentice Hall, 1993.
     \bibitem{Rabiner1989} L. R. Rabiner, "A tutorial on hidden Markov models and selected applications in speech recognition," \textit{Proceedings of the IEEE}, vol. 77, no. 2, pp. 257-286, 1989.
     \bibitem{Hinton2012} G. Hinton et al., "Deep neural networks for acoustic modeling in speech recognition: The shared views of four research groups," \textit{IEEE Signal Processing Magazine}, vol. 29, no. 6, pp. 82-97, 2012.
+    \bibitem{daubechies1992ten} I. Daubechies, \textit{Ten Lectures on Wavelets}, SIAM, 1992.
+    \bibitem{mallat1999wavelet} S. Mallat, \textit{A Wavelet Tour of Signal Processing}, Academic Press, 1999.
+    \bibitem{coifman1995wavelet} R. Coifman and D. Donoho, "Wavelet-based denoising," in \textit{Wavelets and Statistics}, Springer, 1995.
 \end{thebibliography}
 \end{document}
