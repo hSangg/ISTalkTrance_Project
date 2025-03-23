@@ -86,7 +86,7 @@ Mô hình X-Vector thường được huấn luyện theo cấu trúc sau:
     \item \textbf{Lớp đầu ra}: Tạo ra X-Vector có độ dài cố định, có thể được sử dụng để nhận dạng hoặc phân loại.
 \end{itemize}
 
-\subsection{Quy trình trích xuất X-Vector}
+\subsubsection{Quy trình trích xuất X-Vector}
 
 Quy trình trích xuất X-Vector gồm các bước sau:
 
@@ -98,7 +98,7 @@ Quy trình trích xuất X-Vector gồm các bước sau:
 \end{enumerate}
 
 
-\subsection{Quy trình trích xuất X-Vector}
+\subsubsection{Quy trình trích xuất X-Vector}
 
 Quy trình trích xuất X-Vector gồm các bước sau:
 
@@ -110,21 +110,46 @@ Quy trình trích xuất X-Vector gồm các bước sau:
 \end{enumerate}
 
 
-\subsection{Tổng quan về Wavelet trong trích xuất đặc trưng}
 
-Wavelet transform (biến đổi wavelet) là một công cụ toán học mạnh mẽ giúp phân tích tín hiệu trong cả miền thời gian và tần số \cite{daubechies1992ten}. Trong lĩnh vực xử lý tín hiệu tiếng nói, wavelet được sử dụng để trích xuất các đặc trưng quan trọng giúp cải thiện hiệu suất của các hệ thống ASR \cite{mallat1999wavelet}.
+
+\subsection{Biến đổi Wavelet và ứng dụng trong trích xuất đặc trưng ASR}
+
+Biến đổi Wavelet là một công cụ mạnh mẽ trong xử lý tín hiệu, đặc biệt hữu ích trong việc phân tích các tín hiệu không ổn định hoặc có đặc tính thay đổi theo thời gian. Khác với biến đổi Fourier, biến đổi Wavelet cung cấp cả thông tin về tần số và thời gian, giúp phân tích chi tiết hơn về cấu trúc của tín hiệu.
+
+\subsubsection{Biến đổi Wavelet liên tục (CWT)}
+
+Biến đổi Wavelet liên tục của một tín hiệu $x(t)$ được định nghĩa bởi:
+
+\begin{equation}
+    W(a, b) = \int_{-\infty}^{\infty} x(t) \frac{1}{\sqrt{|a|}} \psi\left(\frac{t - b}{a}\right) dt
+\end{equation}
+
+Trong đó, $a$ là hệ số tỉ lệ (scale), $b$ là hệ số dịch (translation), và $\psi(t)$ là hàm Wavelet cơ sở (mother wavelet). Hàm $\psi(t)$ phải thỏa mãn điều kiện:
+
+\begin{equation}
+    \int_{-\infty}^{\infty} \psi(t) dt = 0
+\end{equation}
 
 \subsubsection{Biến đổi Wavelet rời rạc (DWT)}
 
-Biến đổi wavelet rời rạc (Discrete Wavelet Transform - DWT) chia tín hiệu thành các hệ số chi tiết và xấp xỉ, giúp nắm bắt thông tin tín hiệu ở các mức phân giải khác nhau. Điều này đặc biệt hữu ích trong xử lý tiếng nói, nơi các tần số khác nhau mang thông tin quan trọng ở các mức độ khác nhau \cite{coifman1995wavelet}.
+Biến đổi Wavelet rời rạc được thực hiện bằng cách lấy mẫu các hệ số $a$ và $b$ theo lũy thừa của 2:
 
-\subsubsection{Ứng dụng của Wavelet trong ASR}
+\begin{equation}
+    a = 2^j, \quad b = k \cdot 2^j
+\end{equation}
 
-\begin{itemize}
-    \item \textbf{Giảm nhiễu tín hiệu}: Wavelet giúp lọc bỏ nhiễu bằng cách loại bỏ các hệ số chi tiết không quan trọng.
-    \item \textbf{Trích xuất đặc trưng tần số-thời gian}: Wavelet cho phép trích xuất thông tin quan trọng từ tín hiệu mà các phương pháp truyền thống như Fourier Transform không thể làm được.
-    \item \textbf{Kết hợp với X-Vector}: Wavelet có thể được sử dụng để trích xuất đặc trưng đầu vào cho mô hình X-Vector, giúp cải thiện hiệu suất nhận dạng.
-\end{itemize}
+Với $j, k \in \mathbb{Z}$. Khi đó, DWT được biểu diễn dưới dạng:
+
+\begin{equation}
+    W(j, k) = \int_{-\infty}^{\infty} x(t) \frac{1}{\sqrt{2^j}} \psi\left(\frac{t - k \cdot 2^j}{2^j}\right) dt
+\end{equation}
+
+\subsubsection{Ứng dụng trong trích xuất đặc trưng cho ASR}
+
+Trong hệ thống nhận dạng tiếng nói tự động (ASR), việc trích xuất đặc trưng hiệu quả là một bước quan trọng để cải thiện hiệu suất nhận dạng, đặc biệt trong môi trường có nhiễu. Biến đổi Wavelet được sử dụng để giảm nhiễu và trích xuất các đặc trưng quan trọng từ tín hiệu tiếng nói.
+
+Một phương pháp giảm nhiễu dựa trên hàm nén Wavelet thống kê trong miền cảm quan (Perceptual Wavelet Transform) đã được đề xuất. Bằng cách tích hợp thuật toán giảm nhiễu này vào tầng tiền xử lý của hệ thống ASR, hiệu suất nhận dạng được cải thiện đáng kể trong môi trường nhiễu \cite{pham2010}.
+
 
 \section{Mạng Tích Chập Lượng Tử (QCNN)}
 
@@ -211,5 +236,12 @@ Trong đó, $O$ là chuỗi quan sát, và các lớp FC giúp trích xuất đ�
     \bibitem{daubechies1992ten} I. Daubechies, \textit{Ten Lectures on Wavelets}, SIAM, 1992.
     \bibitem{mallat1999wavelet} S. Mallat, \textit{A Wavelet Tour of Signal Processing}, Academic Press, 1999.
     \bibitem{coifman1995wavelet} R. Coifman and D. Donoho, "Wavelet-based denoising," in \textit{Wavelets and Statistics}, Springer, 1995.
+
+    \bibitem{pham2010}
+    Phạm Văn Tuấn, Hoàng Lê Uyên Thục, "Giải pháp giảm nhiễu trong miền Wavelet để nâng cao hiệu suất nhận dạng tiếng nói tự động", Tạp chí Khoa học và Công nghệ, Đại học Đà Nẵng, Số 4(39).2010.
+
+    \bibitem{nguyen2023}
+    Nguyễn Thế Cường, Nguyễn Thanh Vi, Trương Ngọc Hải, "Cơ sở toán và MFCCs – Trích xuất đặc trưng âm thanh", 2023
+
 \end{thebibliography}
 \end{document}
