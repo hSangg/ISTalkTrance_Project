@@ -63,7 +63,6 @@ def predict_speaker(speaker, dvectors):
 audio_file = "train_voice/vnoi_talkshow/ezyZip.wav"
 script_file = "train_voice/vnoi_talkshow/script.txt"
 
-
 # Load script và trích xuất đặc trưng
 segments, speakers = load_script(script_file)
 dvector_dict = extract_dvectors(audio_file, zip(segments, speakers))
