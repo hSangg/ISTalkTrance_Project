@@ -1,7 +1,9 @@
 import librosa
 import numpy as np
 import io
-from .config import Config
+
+from modules.config import Config
+
 
 class FeatureExtractor:
     @staticmethod

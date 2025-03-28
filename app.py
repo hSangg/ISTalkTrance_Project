@@ -1,23 +1,17 @@
-from flask import Flask, request, jsonify, Blueprint
-from modules.authenticate import VoiceAuthenticator
-from modules.config import Config
-from modules.batch_trainer import BatchTrainer
-from werkzeug.utils import secure_filename
 import os
-from typing import Tuple, Dict, Any
-import librosa
-import numpy as np
-import io
 
-from modules.feature_extractor import FeatureExtractor
-from modules.train import EnhancedBatchTrainer
-from modules.utils import Utils
+from flask import Flask, request, jsonify
+
+from modules.authenticate import VoiceAuthenticator
+from modules.batch_trainer import BatchTrainer
 from modules.config import Config
+from modules.feature_extractor import FeatureExtractor
+from modules.utils import Utils
 
 app = Flask(__name__)
 
 Config.setup()
-from modules.train import EnhancedBatchTrainer
+from modules.train_method import EnhancedBatchTrainer
 
 authenticator = VoiceAuthenticator()
 batch_trainer = BatchTrainer()
@@ -64,7 +58,6 @@ def allowed_file(filename: str) -> bool:
 
 @app.route('/train/status', methods=['GET'])
 def training_status():
-    """Get the status of trained models"""
     try:
         models = authenticator.list_models()
         train_dir = 'train_data'
@@ -94,7 +87,6 @@ def training_status():
 
 @app.route('/train/batch', methods=['POST'])
 def train_batch():
-    """Train all models from the training data directory"""
     try:
         train_dir = request.json.get('train_dir', 'train_data') if request.is_json else 'train_data'
         
@@ -121,7 +113,7 @@ def authenticate():
         return jsonify({"error": "No files provided"}), 400
 
     try:
-        file_key, file = next(iter(request.files.items()))
+        _, file = next(iter(request.files.items()))
 
         if file.filename == '':
             return jsonify({"error": "No selected file"}), 400
@@ -148,58 +140,32 @@ def authenticate():
             "success": False,
             "error": str(e)
         }), 500
-    
-@app.route('/models', methods=['GET'])
-def list_models():
-    try:
-        result = authenticator.list_models()
-        return jsonify(result), 200 if result["success"] else 500
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-    
 
-def load_annotations(annotation_path):
-    annotations = []
-    with open(annotation_path, "r") as f:
-        for line in f:
-            parts = line.strip().split()
-            if len(parts) >= 3:
-                start_time = Utils.parse_time(parts[0])
-                end_time = Utils.parse_time(parts[1])
-                speaker = parts[2]
-                annotations.append((start_time, end_time, speaker))
-    return annotations
-
-def process_folder(folder_path):
+@app.route("/train-all", methods=["POST"])
+def train_all():
     speaker_data = {}
-    subfolders = [f.path for f in os.scandir(folder_path) if f.is_dir()]
-    
+    subfolders = [f.path for f in os.scandir(Config.DATASET_PATH) if f.is_dir()]
+
     for subfolder in subfolders:
+        print("✨ start train for sub-folder \t", subfolder)
         annotation_file = os.path.join(subfolder, "script.txt")
         audio_file = os.path.join(subfolder, "raw.wav")
-        
+
         if not os.path.exists(annotation_file) or not os.path.exists(audio_file):
             continue
-        
-        annotations = load_annotations(annotation_file)
+
+        annotations = Utils.load_annotations(annotation_file)
         folder_speaker_data = FeatureExtractor.extract_features(audio_file, annotations)
-        
+
         for speaker, data in folder_speaker_data.items():
             if speaker not in speaker_data:
                 speaker_data[speaker] = []
             speaker_data[speaker].extend(data)
-    
+
     for speaker, data in speaker_data.items():
+        print("✨ start train for \t", speaker)
         EnhancedBatchTrainer.train_hmm_model(speaker, data)
-
-@app.route("/train", methods=["POST"])
-def train_models():
-    process_folder(Config.DATASET_PATH)
     return jsonify({"message": "Training completed"})
-
 
 if __name__ == '__main__':
     app.run(debug=False)

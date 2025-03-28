@@ -4,7 +4,9 @@ import optuna
 import numpy as np
 from hmmlearn import hmm
 from sklearn.model_selection import KFold
-from .config import Config
+
+from modules.config import Config
+
 
 class ModelManager:
     def __init__(self, n_splits=5):

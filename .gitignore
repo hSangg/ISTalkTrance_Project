@@ -17,3 +17,4 @@ train/*
 !train/clean.py
 !train/extract.py
 /speechbrain_models
+/.idea
