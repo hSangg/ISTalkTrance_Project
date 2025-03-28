@@ -8,6 +8,8 @@ import soundfile as sf
 from sklearn.model_selection import KFold
 import numpy as np
 import optuna
+import pickle
+from modules.config import Config
 
 class EnhancedBatchTrainer:
     def __init__(self, 
@@ -36,6 +38,22 @@ class EnhancedBatchTrainer:
 
         # Ensure models directory exists
         os.makedirs('models', exist_ok=True)
+
+    @staticmethod
+    def train_hmm_model(speaker, data):
+        model_path = f"{Config.MODELS_DIR}/{speaker}.pkl"
+        if os.path.exists(model_path):
+            with open(model_path, "rb") as f:
+                model = pickle.load(f)
+        else:
+            model = hmm.GaussianHMM(n_components=5, covariance_type="diag", n_iter=1000)
+        
+        X = np.vstack(data)
+        lengths = [len(x) for x in data]
+        model.fit(X, lengths)
+        
+        with open(model_path, "wb") as f:
+            pickle.dump(model, f)
 
     def parse_timestamp_script(self, script_path: str) -> List[Dict[str, Union[float, str]]]:
         """
@@ -273,7 +291,6 @@ class EnhancedBatchTrainer:
                 'error': str(e)
             }
 
-    
     def extract_and_export_20_percent(self, audio_path: str, segments: List, output_dir: str):
         """
         Use the first 80% of the segments for training and export the last 20% for testing.
@@ -317,8 +334,3 @@ class EnhancedBatchTrainer:
 
         return train_segments
 
-
-if __name__ == "__main__":
-    trainer = EnhancedBatchTrainer()
-    training_results = trainer.train_all_users()
-    print(training_results)
