@@ -8,6 +8,7 @@ class Config:
     N_MFCC = 13
     HMM_COMPONENTS = 5
     HMM_ITERATIONS = 100
+    DATASET_PATH = "./train_voice"
     
     @staticmethod
     def setup():

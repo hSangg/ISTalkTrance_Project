@@ -3,13 +3,16 @@ from modules.authenticate import VoiceAuthenticator
 from modules.config import Config
 from modules.batch_trainer import BatchTrainer
 from werkzeug.utils import secure_filename
-from modules.qcnn_trainer import QCNNTrainer
-from modules.qcnn_tester import QCNNTester
 import os
 from typing import Tuple, Dict, Any
 import librosa
 import numpy as np
 import io
+
+from modules.feature_extractor import FeatureExtractor
+from modules.train import EnhancedBatchTrainer
+from modules.utils import Utils
+from modules.config import Config
 
 app = Flask(__name__)
 
@@ -55,54 +58,9 @@ def train():
             "error": str(e)
         }), 500
 
-@app.route('/train/qcnn', methods=['POST'])
-def train_qcnn():
-    try:
-        user_id = request.form.get('user_id')
-        if not user_id:
-            return jsonify({'error': 'user_id is required'}), 400
-            
-        if 'audio_file' not in request.files or 'script_file' not in request.files:
-            return jsonify({'error': 'Both audio and script files are required'}), 400
-            
-        audio_file = request.files['audio_file']
-        script_file = request.files['script_file']
-        
-        if not allowed_file(audio_file.filename) or not allowed_file(script_file.filename):
-            return jsonify({'error': 'Invalid file type'}), 400
-            
-        upload_dir = os.path.join("uploads", secure_filename(user_id))
-        os.makedirs(upload_dir, exist_ok=True)
-        
-        audio_path = os.path.join(upload_dir, secure_filename(audio_file.filename))
-        script_path = os.path.join(upload_dir, secure_filename(script_file.filename))
-        
-        audio_file.save(audio_path)
-        script_file.save(script_path)
-        
-        trainer = QCNNTrainer()
-        result = trainer.train_model(user_id, audio_path, script_path)
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 def allowed_file(filename: str) -> bool:
     ALLOWED_EXTENSIONS = {'wav', 'txt'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-@app.route('/test/qcnn', methods=['POST'])
-def test_qcnn():
-    user_id = request.form['user_id']
-    audio_file = request.files['test_audio']
-    test_audio_path = os.path.join("uploads", "test_audio.wav")
-    audio_file.save(test_audio_path)
-    
-    tester = QCNNTester(user_id)
-    label = tester.predict_speaker(test_audio_path)
-    
-    return jsonify({"predicted_label": label})
 
 @app.route('/train/status', methods=['GET'])
 def training_status():
@@ -153,24 +111,35 @@ def train_batch():
             "error": str(e),
         }), 500
 
+import time
+
 @app.route('/authenticate', methods=['POST'])
 def authenticate():
+    start_time = time.time()
+
     if not request.files:
         return jsonify({"error": "No files provided"}), 400
 
     try:
         file_key, file = next(iter(request.files.items()))
-        
+
         if file.filename == '':
             return jsonify({"error": "No selected file"}), 400
 
         audio_bytes = file.read()
         result = authenticator.authenticate(audio_bytes)
-        
+
+        elapsed_time = time.time() - start_time 
+
+        response = {
+            "elapsed_time": elapsed_time,
+            **result
+        }
+
         if result["success"]:
-            return jsonify(result), 200
+            return jsonify(response), 200
         else:
-            return jsonify(result), 400
+            return jsonify(response), 400
 
     except StopIteration:
         return jsonify({"error": "No files in the request"}), 400
@@ -191,5 +160,46 @@ def list_models():
             "error": str(e)
         }), 500
     
+
+def load_annotations(annotation_path):
+    annotations = []
+    with open(annotation_path, "r") as f:
+        for line in f:
+            parts = line.strip().split()
+            if len(parts) >= 3:
+                start_time = Utils.parse_time(parts[0])
+                end_time = Utils.parse_time(parts[1])
+                speaker = parts[2]
+                annotations.append((start_time, end_time, speaker))
+    return annotations
+
+def process_folder(folder_path):
+    speaker_data = {}
+    subfolders = [f.path for f in os.scandir(folder_path) if f.is_dir()]
+    
+    for subfolder in subfolders:
+        annotation_file = os.path.join(subfolder, "script.txt")
+        audio_file = os.path.join(subfolder, "raw.wav")
+        
+        if not os.path.exists(annotation_file) or not os.path.exists(audio_file):
+            continue
+        
+        annotations = load_annotations(annotation_file)
+        folder_speaker_data = FeatureExtractor.extract_features(audio_file, annotations)
+        
+        for speaker, data in folder_speaker_data.items():
+            if speaker not in speaker_data:
+                speaker_data[speaker] = []
+            speaker_data[speaker].extend(data)
+    
+    for speaker, data in speaker_data.items():
+        EnhancedBatchTrainer.train_hmm_model(speaker, data)
+
+@app.route("/train", methods=["POST"])
+def train_models():
+    process_folder(Config.DATASET_PATH)
+    return jsonify({"message": "Training completed"})
+
+
 if __name__ == '__main__':
     app.run(debug=False)
