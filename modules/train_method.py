@@ -1,15 +1,17 @@
 import os
-import numpy as np
-import librosa
+import pickle
 from typing import Dict, List, Union
-from hmmlearn import hmm
+
 import joblib
-import soundfile as sf
-from sklearn.model_selection import KFold
+import librosa
 import numpy as np
 import optuna
-import pickle
+import soundfile as sf
+from hmmlearn import hmm
+from sklearn.model_selection import KFold
+
 from modules.config import Config
+
 
 class EnhancedBatchTrainer:
     def __init__(self, 
@@ -192,7 +194,7 @@ class EnhancedBatchTrainer:
                 model.fit(train_features)
                 score = model.score(test_features)
                 scores.append(score)
-            except Exception as e:
+            except Exception:
                 # Return a very low score if model fitting fails
                 return float('-inf')
         
