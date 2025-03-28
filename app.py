@@ -3,13 +3,13 @@ from modules.authenticate import VoiceAuthenticator
 from modules.config import Config
 from modules.batch_trainer import BatchTrainer
 from werkzeug.utils import secure_filename
-from modules.qcnn_trainer import QCNNTrainer
-from modules.qcnn_tester import QCNNTester
 import os
 from typing import Tuple, Dict, Any
 import librosa
 import numpy as np
 import io
+from QCNN_HMM.MFCC.MFCC_QCNN_HMM import MFCC_QCNN_HMM
+from QCNN_HMM.Wavelet.Wavelet_QCNN_HMM import Wavelet_QCNN_HMM
 
 app = Flask(__name__)
 
@@ -190,6 +190,75 @@ def list_models():
             "success": False,
             "error": str(e)
         }), 500
+
+@app.route('/train/mfcc_qcnn_hmm', methods=['POST'])
+def train_mfcc_qcnn_hmm():
+    try:
+        user_id = request.form.get('user_id')
+        if not user_id:
+            return jsonify({"error": "user_id is required"}), 400
+
+        audio_file = request.files.get('audio_file')
+        script_file = request.files.get('script_file')
+        if not audio_file or not script_file:
+            return jsonify({"error": "Both audio_file and script_file are required"}), 400
+
+        user_dir = os.path.join("train_voice", user_id)
+        os.makedirs(user_dir, exist_ok=True)
+
+        audio_path = os.path.join(user_dir, "raw.wav")
+        script_path = os.path.join(user_dir, "script.txt")
+        audio_file.save(audio_path)
+        script_file.save(script_path)
+
+        model_dir = os.path.join(user_dir, 'mfcc_hmm_qcnn_models')
+        os.makedirs(model_dir, exist_ok=True)
+        trainer = MFCC_QCNN_HMM(audio_path, script_path)
+
+        result = trainer.run_speaker_identification()
+
+        return jsonify({
+            "message": "Training completed successfully",
+            "results": result
+        }), 200
     
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/train/wavelet_qcnn_hmm', methods=['POST'])
+def train_wavelet_qcnn_hmm():
+    try:
+        user_id = request.form.get('user_id')
+        if not user_id:
+            return jsonify({"error": "user_id is required"}), 400
+
+        audio_file = request.files.get('audio_file')
+        script_file = request.files.get('script_file')
+        if not audio_file or not script_file:
+            return jsonify({"error": "Both audio_file and script_file are required"}), 400
+
+        user_dir = os.path.join("train_voice", user_id)
+        os.makedirs(user_dir, exist_ok=True)
+
+        audio_path = os.path.join(user_dir, "raw.wav")
+        script_path = os.path.join(user_dir, "script.txt")
+        audio_file.save(audio_path)
+        script_file.save(script_path)
+
+        model_dir = os.path.join(user_dir, 'wavelet_hmm_qcnn_models')
+        os.makedirs(model_dir, exist_ok=True)
+        trainer = Wavelet_QCNN_HMM(audio_path, script_path)
+
+        result = trainer.run_speaker_identification()
+
+        return jsonify({
+            "message": "Training completed successfully",
+            "results": result
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=False)
