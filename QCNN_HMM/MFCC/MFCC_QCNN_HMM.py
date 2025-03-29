@@ -173,7 +173,7 @@ class MFCC_QCNN_HMM:
         
         # Save the trained HMM models
         for speaker, model in hmm_models.items():
-            model_filename = os.path.join(self.model_dir, f"hmm_model_{speaker}.pkl")
+            model_filename = os.path.join(self.model_dir, f"{speaker}.pkl")
             joblib.dump(model, model_filename)
             logging.info(f"Saved HMM model for {speaker} at {model_filename}")
         
@@ -275,3 +275,10 @@ class MFCC_QCNN_HMM:
         
         logging.info("Speaker identification completed.")
         return results
+
+wav_path = os.path.join("..", "..", "train_data", "meeting_1", "raw.wav")
+script = os.path.join("..", "..", "train_data", "meeting_1", "script.txt")
+
+trainer = MFCC_QCNN_HMM(wav_path, script)
+result = trainer.run_speaker_identification()
+print(result)
