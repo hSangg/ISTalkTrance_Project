@@ -1,15 +1,37 @@
 import os
-import numpy as np
-import librosa
-from typing import Dict, List, Union
-from hmmlearn import hmm
+import pickle
+from typing import Dict, List
+
 import joblib
-import soundfile as sf
-from sklearn.model_selection import KFold
+import librosa
 import numpy as np
 import optuna
+import soundfile as sf
+from hmmlearn import hmm
+from sklearn.model_selection import KFold
 
-class EnhancedBatchTrainer:
+from modules.config import Config
+from modules.feature_extractor import FeatureExtractor
+from modules.utils import Utils
+
+
+def train_hmm_model(speaker, data):
+    model_path = f"{Config.MODELS_DIR}/{speaker}.pkl"
+    if os.path.exists(model_path):
+        with open(model_path, "rb") as f:
+            model = pickle.load(f)
+    else:
+        model = hmm.GaussianHMM(n_components=5, covariance_type="diag", n_iter=1000)
+
+    X = np.vstack(data)
+    lengths = [len(x) for x in data]
+    model.fit(X, lengths)
+
+    with open(model_path, "wb") as f:
+        pickle.dump(model, f)
+
+
+class Trainner:
     def __init__(self, 
                  train_dir='train_voice', 
                  sample_rate=16000, 
@@ -17,16 +39,7 @@ class EnhancedBatchTrainer:
                  hmm_components=5, 
                  hmm_iterations=100,
                  n_trials: int = 5):
-        """
-        Enhanced batch trainer for voice authentication
 
-        Args:
-            train_dir (str): Directory containing user voice recordings
-            sample_rate (int): Audio sample rate for feature extraction
-            n_mfcc (int): Number of MFCCs to extract
-            hmm_components (int): Number of HMM states
-            hmm_iterations (int): Maximum HMM training iterations
-        """
         self.train_dir = train_dir
         self.sample_rate = sample_rate
         self.n_mfcc = n_mfcc
@@ -34,107 +47,58 @@ class EnhancedBatchTrainer:
         self.hmm_iterations = hmm_iterations
         self.n_trials = n_trials
 
-        # Ensure models directory exists
         os.makedirs('models', exist_ok=True)
 
-    def parse_timestamp_script(self, script_path: str) -> List[Dict[str, Union[float, str]]]:
-        """
-        Parse timestamp script file into structured segments
+    @staticmethod
+    def train_hmm_model_all():
+        speaker_data = {}
+        subfolders = [f.path for f in os.scandir(Config.DATASET_PATH) if f.is_dir()]
 
-        Args:
-            script_path (str): Path to timestamp script file
+        for subfolder in subfolders:
+            print("✨ start extract feature for sub-folder ✨ \t \t", subfolder)
+            annotation_file = os.path.join(subfolder, "script.txt")
+            audio_file = os.path.join(subfolder, "raw.wav")
 
-        Returns:
-            List of dictionaries with segment details
-        """
-        segments = []
-        try:
-            with open(script_path, 'r') as f:
-                script_text = f.read().strip()
-                time_labels = script_text.split()
-            
-            for i in range(0, len(time_labels), 3):
-                start_time = self._parse_time(time_labels[i])
-                end_time = self._parse_time(time_labels[i+1])
-                label = time_labels[i+2]
-                
-                segments.append({
-                    'start': start_time,
-                    'end': end_time,
-                    'label': label
-                })
-            audio_path = os.path.join('train_voice', 'user123', 'raw.wav')
-            print(f"Type of audio_path: {type(audio_path)}")
+            if not os.path.exists(annotation_file) or not os.path.exists(audio_file):
+                continue
 
-            output_dir='20_percent_test'
-            if segments:
-                self.extract_and_export_20_percent(audio_path, segments, output_dir)
-            else:
-                print("No segments to extract.")
-            return segments
-        except Exception as e:
-            print(f"Error parsing timestamp script: {e}")
-            return []
+            annotations = Utils.load_annotations(annotation_file)
+            folder_speaker_data = FeatureExtractor.extract_features(audio_file, annotations)
 
-    def _parse_time(self, time_str: str) -> float:
-        """
-        Convert timestamp to seconds
+            for speaker, data in folder_speaker_data.items():
+                if speaker not in speaker_data:
+                    speaker_data[speaker] = []
+                speaker_data[speaker].extend(data)
 
-        Args:
-            time_str (str): Timestamp in format M:SS or H:MM:SS
-
-        Returns:
-            float: Total seconds
-        """
-        parts = time_str.split(':')
-        if len(parts) == 2:
-            return int(parts[0]) * 60 + float(parts[1])
-        elif len(parts) == 3:
-            return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
-        return 0.0
+        for speaker, data in speaker_data.items():
+            print("✨ start train for: ", speaker, " ✨")
+            train_hmm_model(speaker, data)
 
     def extract_segmented_features(self, audio_path: str, segments: List[Dict]) -> Dict[str, np.ndarray]:
-        """
-        Extract MFCC features for each label in the segments.
-
-        Args:
-            audio_path (str): Path to the audio file.
-            segments (List[Dict]): List of audio segments.
-
-        Returns:
-            Dict[str, np.ndarray]: Features grouped by label.
-        """
         try:
-            # Load entire audio
             print(f"Loading audio from: {audio_path}")
             audio, sr = librosa.load(audio_path, sr=self.sample_rate)
 
-            # Minimum number of samples required for MFCC extraction
-            min_samples = 2048  # Default `n_fft` for STFT in librosa
+            min_samples = 2048
 
-            # Collect features for each label
             label_features = {}
             for segment in segments:
                 label = segment['label']
                 start_sample = int(segment['start'] * sr)
                 end_sample = int(segment['end'] * sr)
 
-                # Extract the segment
                 segment_audio = audio[start_sample:end_sample]
 
-                # Check if the segment is long enough
                 if len(segment_audio) < min_samples:
                     print(f"Skipping segment {label}: too short ({len(segment_audio)} samples).")
                     continue
 
-                # Extract features for this segment
                 mfcc = librosa.feature.mfcc(y=segment_audio, sr=sr, n_mfcc=self.n_mfcc)
                 delta1 = librosa.feature.delta(mfcc)
                 delta2 = librosa.feature.delta(mfcc, order=2)
 
                 combined_features = np.vstack([mfcc, delta1, delta2]).T
 
-                # Store features by label
                 if label not in label_features:
                     label_features[label] = combined_features
                 else:
@@ -146,16 +110,11 @@ class EnhancedBatchTrainer:
             return {}
 
     def objective(self, trial, features: np.ndarray, n_splits: int = 5):
-        """
-        Optuna objective function for optimizing HMM parameters
-        """
-        # Define hyperparameter search space
         n_components = trial.suggest_int('n_components', 2, 10)
         covariance_type = trial.suggest_categorical('covariance_type', 
                                                   ['diag', 'spherical', 'tied', 'full'])
         n_iter = trial.suggest_int('n_iter', 50, 200)
         
-        # Cross validation
         kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
         scores = []
         
@@ -174,33 +133,20 @@ class EnhancedBatchTrainer:
                 model.fit(train_features)
                 score = model.score(test_features)
                 scores.append(score)
-            except Exception as e:
-                # Return a very low score if model fitting fails
+            except Exception:
                 return float('-inf')
         
         return np.mean(scores)
 
     def train_user_model(self, user_dir: str, n_splits: int = 5) -> Dict:
-        """
-        Train models for a specific user using Optuna for hyperparameter optimization
-        and k-fold cross validation for evaluation.
-
-        Args:
-            user_dir (str): Directory containing the user's audio and script
-            n_splits (int): Number of folds for cross-validation (default: 5)
-
-        Returns:
-            Dict with training results including cross-validation scores and best parameters
-        """
         try:
             raw_audio = os.path.join(user_dir, 'raw.wav')
             script_file = [f for f in os.listdir(user_dir) if f.endswith('.txt')][0]
             script_path = os.path.join(user_dir, script_file)
-            segments = self.parse_timestamp_script(script_path)
+            segments = Utils.parse_timestamp_script(self, script_path)
 
             results = {}
             
-            # Process each label separately
             label_features = self.extract_segmented_features(raw_audio, segments)
             
             for label, features in label_features.items():
@@ -211,15 +157,12 @@ class EnhancedBatchTrainer:
                     }
                     continue
 
-                # Create a new study for this label
                 study = optuna.create_study(direction='maximize')
                 study.optimize(lambda trial: self.objective(trial, features, n_splits), 
                              n_trials=self.n_trials)
                 
-                # Get best parameters
                 best_params = study.best_params
                 
-                # Train final model with best parameters on all data
                 final_model = hmm.GaussianHMM(
                     n_components=best_params['n_components'],
                     covariance_type=best_params['covariance_type'],
@@ -228,11 +171,9 @@ class EnhancedBatchTrainer:
                 )
                 final_model.fit(features)
                 
-                # Save the final model
                 model_path = os.path.join('models', f'{label}_model.pkl')
                 joblib.dump(final_model, model_path)
                 
-                # Evaluate with cross-validation using best parameters
                 kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
                 cv_scores = []
                 
@@ -250,7 +191,6 @@ class EnhancedBatchTrainer:
                     score = model.score(test_features)
                     cv_scores.append(score)
                 
-                # Store results for this label
                 results[label] = {
                     'success': True,
                     'model_path': model_path,
@@ -273,7 +213,6 @@ class EnhancedBatchTrainer:
                 'error': str(e)
             }
 
-    
     def extract_and_export_20_percent(self, audio_path: str, segments: List, output_dir: str):
         """
         Use the first 80% of the segments for training and export the last 20% for testing.
@@ -317,8 +256,3 @@ class EnhancedBatchTrainer:
 
         return train_segments
 
-
-if __name__ == "__main__":
-    trainer = EnhancedBatchTrainer()
-    training_results = trainer.train_all_users()
-    print(training_results)

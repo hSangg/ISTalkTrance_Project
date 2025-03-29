@@ -1,7 +1,10 @@
 import os
+
 import numpy as np
-from .feature_extractor import FeatureExtractor
-from .model_manager import ModelManager
+
+from modules.feature_extractor import FeatureExtractor
+from modules.model_manager import ModelManager
+
 
 class BatchTrainer:
     def __init__(self):
@@ -9,7 +12,6 @@ class BatchTrainer:
         self.model_manager = ModelManager()
         
     def process_user_directory(self, user_id, user_dir):
-        """Process all audio files for a single user"""
         try:
             all_features = []
             audio_files = [f for f in os.listdir(user_dir) if f.endswith(('.wav', '.WAV'))]
@@ -59,7 +61,6 @@ class BatchTrainer:
             }
 
     def train_all(self, train_data_dir='train_data'):
-        """Train models for all users in the training directory"""
         if not os.path.exists(train_data_dir):
             return {
                 "success": False,

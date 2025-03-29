@@ -1,13 +1,16 @@
-import os
 import logging
+import os
+
 
 class Config:
-    MODELS_DIR = 'models'
+    MODELS_DIR = './models'
     LOGGING_LEVEL = logging.INFO
     SAMPLE_RATE = 16000
     N_MFCC = 13
     HMM_COMPONENTS = 5
     HMM_ITERATIONS = 100
+    DATASET_PATH = "./train_voice"
+    ALLOWED_EXTENSIONS = {'wav', 'txt'}
     
     @staticmethod
     def setup():

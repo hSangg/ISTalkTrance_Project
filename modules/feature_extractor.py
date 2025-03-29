@@ -1,7 +1,9 @@
 import librosa
 import numpy as np
 import io
-from .config import Config
+
+from modules.config import Config
+
 
 class FeatureExtractor:
     @staticmethod
@@ -26,3 +28,15 @@ class FeatureExtractor:
             return combined_mfcc.T
         except Exception as e:
             raise
+
+    @staticmethod
+    def extract_features(audio_path, annotations):
+        y, sr = librosa.load(audio_path, sr=None)
+        speaker_data = {}
+        for start, end, speaker in annotations:
+            segment = y[int(start * sr): int(end * sr)]
+            mfcc = librosa.feature.mfcc(y=segment, sr=sr, n_mfcc=13).T
+            if speaker not in speaker_data:
+                speaker_data[speaker] = []
+            speaker_data[speaker].append(mfcc)
+        return speaker_data

@@ -1,7 +1,8 @@
-from .feature_extractor import FeatureExtractor
-from .model_manager import ModelManager
-from .config import Config
 import numpy as np
+
+from modules.feature_extractor import FeatureExtractor
+from modules.model_manager import ModelManager
+
 
 class VoiceAuthenticator:
     
@@ -10,7 +11,6 @@ class VoiceAuthenticator:
         self.feature_extractor = FeatureExtractor()
         
     def train(self, user_id, audio_files):
-        """Train a model for a user using multiple audio files"""
         try:
             all_features = []
             
@@ -42,7 +42,6 @@ class VoiceAuthenticator:
             }
 
     def authenticate(self, audio_bytes):
-        """Authenticate a user based on voice sample"""
         try:
             features = self.feature_extractor.extract_mfcc_from_bytes(audio_bytes)
             
@@ -73,7 +72,6 @@ class VoiceAuthenticator:
             }
 
     def list_models(self):
-        """List all available models"""
         try:
             models = self.model_manager.list_models()
             return {

@@ -1,8 +1,10 @@
 import os
-import numpy as np
-import librosa
-import joblib
 from typing import Dict, List
+
+import joblib
+import librosa
+import numpy as np
+
 
 class VoiceAuthenticator:
     def __init__(self, 
