@@ -1,7 +1,8 @@
 import os
+
 import joblib
-import optuna
 import numpy as np
+import optuna
 from hmmlearn import hmm
 from sklearn.model_selection import KFold
 
@@ -15,7 +16,6 @@ class ModelManager:
         self.n_splits = n_splits
         
     def save_model(self, user_id, model, cv_scores=None):
-        """Save a model and its cross-validation scores to disk"""
         try:
             model_data = {
                 'model': model,
@@ -30,7 +30,6 @@ class ModelManager:
             return False
 
     def load_model(self, user_id):
-        """Load a specific model from disk"""
         try:
             model_path = os.path.join(Config.MODELS_DIR, f'{user_id}_model.pkl')
             if os.path.exists(model_path):
@@ -41,7 +40,6 @@ class ModelManager:
             return False
         
     def load_all_models(self):
-        """Load all models from disk"""
         self.models = {}
         if os.path.exists(Config.MODELS_DIR):
             for filename in os.listdir(Config.MODELS_DIR):
@@ -50,7 +48,6 @@ class ModelManager:
                     self.load_model(user_id)
 
     def cross_validate_model(self, model, features):
-        """Perform cross-validation for a given model configuration"""
         kf = KFold(n_splits=self.n_splits, shuffle=True, random_state=42)
         scores = []
         
@@ -75,7 +72,6 @@ class ModelManager:
         return np.mean(scores) if scores else float("-inf")
 
     def train_model(self, user_id, features):
-        """Train a new HMM model with parameter optimization and cross-validation"""
         def objective(trial):
             n_components = trial.suggest_int("n_components", 2, 10)
             covariance_type = trial.suggest_categorical("covariance_type", ["diag", "full", "tied", "spherical"])
@@ -137,9 +133,7 @@ class ModelManager:
             }
 
     def get_model(self, user_id):
-        """Get a model by user_id"""
         return self.models.get(user_id)
 
     def list_models(self):
-        """List all available models"""
         return list(self.models.keys())

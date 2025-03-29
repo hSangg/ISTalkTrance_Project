@@ -1,5 +1,6 @@
-import os
 import logging
+import os
+
 
 class Config:
     MODELS_DIR = './models'
@@ -9,6 +10,7 @@ class Config:
     HMM_COMPONENTS = 5
     HMM_ITERATIONS = 100
     DATASET_PATH = "./train_voice"
+    ALLOWED_EXTENSIONS = {'wav', 'txt'}
     
     @staticmethod
     def setup():
