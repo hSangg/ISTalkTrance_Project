@@ -12,6 +12,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.metrics import accuracy_score
 import torch.nn.functional as F
+import os
 
 np.random.seed(42)
 torch.manual_seed(42)
@@ -545,9 +546,9 @@ def load_qcnn_ensemble(filename='qcnn_boosting_model.pth'):
     return boosting_model, label_encoder
 
 if __name__ == "__main__":
-    audio_file = "meeting_1/raw.wav"
-    script_file = "meeting_1/script.txt"
-    
+    audio_file = os.path.join("..", "..", "train_data", "meeting_1", "raw.wav")
+    script_file = os.path.join("..", "..", "train_data", "meeting_1", "script.txt")
+        
     model, label_encoder = train_speaker_recognition_qcnn(audio_file, script_file)
     
     save_qcnn_ensemble(model, label_encoder, 'qcnn_boosting_model.pth')
