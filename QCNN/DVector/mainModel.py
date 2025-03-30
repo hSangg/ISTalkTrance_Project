@@ -9,11 +9,9 @@ import librosa
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score
 import torch.nn.functional as F
-import pywt
 import os
-
 np.random.seed(42)
 torch.manual_seed(42)
 
@@ -22,12 +20,10 @@ N_LAYERS = 2
 BATCH_SIZE = 4
 LEARNING_RATE = 0.001
 EPOCHS = 20
-WAVELET_FEATURES = 16
+DVECTOR_DIM = 256
 SEGMENT_DURATION = 1.0
 SAMPLE_RATE = 16000
 NUM_BOOSTING_ESTIMATORS = 1
-WAVELET_NAME = 'db4'
-WAVELET_LEVEL = 5 
 
 dev = qml.device("default.qubit", wires=N_QUBITS)
 
@@ -54,27 +50,82 @@ def quantum_circuit(inputs, weights):
     
     return [qml.expval(qml.PauliZ(i)) for i in range(N_QUBITS)]
 
-class CNNFeatureExtractor(nn.Module):
-    def __init__(self, input_channels=1, wavelet_features=WAVELET_FEATURES):
-        super(CNNFeatureExtractor, self).__init__()
-        self.conv1 = nn.Conv1d(input_channels, 16, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm1d(16)
-        self.pool1 = nn.MaxPool1d(2)
-        self.conv2 = nn.Conv1d(16, 32, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm1d(32)
-        self.pool2 = nn.MaxPool1d(2)
-        self.conv3 = nn.Conv1d(32, N_QUBITS, kernel_size=3, padding=1)
-        self.global_pool = nn.AdaptiveAvgPool1d(1)
+class DVectorExtractor(nn.Module):
+    """
+    D-Vector speaker embedding extractor based on a deep neural network
+    """
+    def __init__(self, input_dim=40, hidden_dim=128, dvector_dim=DVECTOR_DIM):
+        super(DVectorExtractor, self).__init__()
+        
+        self.encoder = nn.Sequential(
+            nn.Conv1d(1, 32, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.MaxPool1d(2),
+            
+            nn.Conv1d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.MaxPool1d(2),
+            
+            nn.Conv1d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.MaxPool1d(2)
+        )
+        
+        self.encoder_output_size = input_dim // 8 * 128
+        
+        self.lstm = nn.LSTM(
+            input_size=128,
+            hidden_size=hidden_dim,
+            num_layers=2,
+            batch_first=True,
+            bidirectional=True
+        )
+        
+        self.attention = nn.Sequential(
+            nn.Linear(hidden_dim * 2, 1),
+            nn.Tanh()
+        )
+        
+        self.dvector_projector = nn.Sequential(
+            nn.Linear(hidden_dim * 2, dvector_dim),
+            nn.BatchNorm1d(dvector_dim),
+            nn.ReLU()
+        )
+        
+        self.compressor = nn.Sequential(
+            nn.Linear(dvector_dim, N_QUBITS),
+            nn.Tanh()
+        )
         
     def forward(self, x):
+        batch_size = x.size(0)
+        
+        x = x.transpose(1, 2)
+        
         x = x.unsqueeze(1)
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = self.pool1(x)
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = self.pool2(x)
-        x = F.relu(self.conv3(x))
-        x = self.global_pool(x)
-        return x.squeeze(-1)
+        
+        x = x.reshape(batch_size, 1, -1)
+        
+        x = self.encoder(x)
+        
+        x = x.transpose(1, 2)
+        
+        # LSTM processing
+        lstm_out, _ = self.lstm(x)
+        
+        attention_weights = self.attention(lstm_out).squeeze(-1)
+        attention_weights = F.softmax(attention_weights, dim=1)
+        
+        context = torch.bmm(attention_weights.unsqueeze(1), lstm_out).squeeze(1)
+        
+        dvector = self.dvector_projector(context)
+        
+        compressed = self.compressor(dvector)
+        
+        return compressed
 
 class QuantumNeuralNetwork(nn.Module):
     def __init__(self, n_qubits=N_QUBITS, n_layers=N_LAYERS):
@@ -88,37 +139,34 @@ class QuantumNeuralNetwork(nn.Module):
         x = self.qlayer(x)
         return x
 
-class QCNNHybrid(nn.Module):
-    def __init__(self, n_qubits=N_QUBITS, n_layers=N_LAYERS, n_classes=2, wavelet_features=WAVELET_FEATURES):
-        super(QCNNHybrid, self).__init__()
+class QDVectorHybrid(nn.Module):
+    def __init__(self, n_qubits=N_QUBITS, n_layers=N_LAYERS, n_classes=2, input_dim=40):
+        super(QDVectorHybrid, self).__init__()
         
-        self.cnn = CNNFeatureExtractor(input_channels=1, wavelet_features=wavelet_features)
+        self.dvector = DVectorExtractor(input_dim=input_dim, dvector_dim=DVECTOR_DIM)
         self.qnn = QuantumNeuralNetwork(n_qubits=n_qubits, n_layers=n_layers)
         
         self.post_processing = nn.Linear(n_qubits, n_classes)
     
     def forward(self, x):
-        x = self.cnn(x)
-        
+        x = self.dvector(x)
         x = self.qnn(x)
-        
         x = self.post_processing(x)
-        
         return x
 
-class BoostingQCNN:
-    def __init__(self, n_estimators=NUM_BOOSTING_ESTIMATORS, n_qubits=N_QUBITS, n_layers=N_LAYERS, n_classes=2, wavelet_features=WAVELET_FEATURES, learning_rate=LEARNING_RATE):
+class BoostingQDVector:
+    def __init__(self, n_estimators=NUM_BOOSTING_ESTIMATORS, n_qubits=N_QUBITS, n_layers=N_LAYERS, n_classes=2, input_dim=40, learning_rate=LEARNING_RATE):
         self.n_estimators = n_estimators
         self.n_qubits = n_qubits
         self.n_layers = n_layers
         self.n_classes = n_classes
-        self.wavelet_features = wavelet_features
+        self.input_dim = input_dim
         self.learning_rate = learning_rate
         self.models = []
         self.weights = np.ones(n_estimators) / n_estimators
         
     def fit(self, train_loader, test_loader, epochs=EPOCHS):
-        """Train multiple QCNN models and combine them using a boosting approach"""
+        """Train multiple QDVector models and combine them using a boosting approach"""
         
         sample_weights = np.ones(len(train_loader.dataset)) / len(train_loader.dataset)
         
@@ -138,11 +186,11 @@ class BoostingQCNN:
                 drop_last=True
             )
             
-            model = QCNNHybrid(
+            model = QDVectorHybrid(
                 n_qubits=self.n_qubits,
                 n_layers=self.n_layers,
                 n_classes=self.n_classes,
-                wavelet_features=self.wavelet_features
+                input_dim=self.input_dim
             )
             
             criterion = nn.CrossEntropyLoss()
@@ -246,54 +294,29 @@ class BoostingQCNN:
         _, predicted = torch.max(ensemble_pred, 1)
         return predicted
 
-def extract_wavelet_from_file(audio_file, sr=SAMPLE_RATE, wavelet_name=WAVELET_NAME, level=WAVELET_LEVEL):
+def extract_features_from_file(audio_file, sr=SAMPLE_RATE):
     """
-    Extract wavelet features from an audio file.
-    Returns a matrix of wavelet coefficients.
+    Extract spectral features from an audio file for d-vector processing.
+    Returns mel-spectrograms instead of MFCCs.
     """
     try:
+        # Load audio file
         y, sr = librosa.load(audio_file, sr=sr)
         
-        coeffs = pywt.wavedec(y, wavelet_name, level=level)
+        mel_spec = librosa.feature.melspectrogram(
+            y=y, sr=sr, n_mels=40, 
+            fmin=20, fmax=8000,
+            hop_length=int(sr/100)
+        )
         
-        features = []
-        features.append(coeffs[0])
+        log_mel_spec = librosa.power_to_db(mel_spec)
         
-        for detail in coeffs[1:]:
-            features.append(detail)
+        log_mel_spec = log_mel_spec.T
         
-        wavelet_features = np.array(features, dtype=object)
-        
-        return wavelet_features, y, sr
+        return log_mel_spec, y, sr
     except Exception as e:
         print(f"Error loading audio file {audio_file}: {e}")
         raise
-
-def process_wavelet_coefficients(coeffs, segment_duration, sr, n_features=WAVELET_FEATURES):
-    """
-    Process wavelet coefficients to create fixed-length feature vectors.
-    """
-    total_length = sum(len(coeff) for coeff in coeffs)
-    
-    frames_per_segment = int(segment_duration * sr)
-    
-    processed_coeffs = []
-    for i, coeff in enumerate(coeffs):
-        if len(coeff) > 0:
-            mean = np.mean(coeff)
-            std = np.std(coeff)
-            max_val = np.max(coeff)
-            min_val = np.min(coeff)
-            energy = np.sum(coeff**2)
-            
-            processed_coeffs.extend([mean, std, max_val, min_val, energy])
-    
-    if len(processed_coeffs) > n_features:
-        processed_coeffs = processed_coeffs[:n_features]
-    elif len(processed_coeffs) < n_features:
-        processed_coeffs.extend([0] * (n_features - len(processed_coeffs)))
-    
-    return np.array(processed_coeffs)
 
 def time_to_seconds(time_str):
     """
@@ -325,43 +348,43 @@ def parse_script(script_file):
 
 def create_dataset_from_audio(audio_file, script_file, segment_duration=SEGMENT_DURATION):
     """
-    Create a dataset from audio file and script file using wavelet features.
-    Returns a list of (wavelet_features, label) tuples.
+    Create a dataset from audio file and script file.
+    Returns a list of (spectrogram_segment, label) tuples.
     """
-    wavelet_coeffs, y, sr = extract_wavelet_from_file(audio_file)
-    print(f"Audio loaded: {len(y)/sr:.2f} seconds")
+    specs, y, sr = extract_features_from_file(audio_file)
+    print(f"Audio loaded: {len(y)/sr:.2f} seconds, Spectrogram shape: {specs.shape}")
     
     segments = parse_script(script_file)
     print(f"Script parsed: {len(segments)} segments found")
     
+    frames_per_second = specs.shape[0] / (len(y) / sr)
+    print(f"Spectrogram frames per second: {frames_per_second:.2f}")
+    
     dataset = []
     for start_time, end_time, label in segments:
-        start_sample = int(start_time * sr)
-        end_sample = int(end_time * sr)
+        start_frame = int(start_time * frames_per_second)
+        end_frame = int(end_time * frames_per_second)
         
-        audio_segment = y[start_sample:end_sample]
+        spec_segment = specs[start_frame:end_frame]
         
-        if len(audio_segment) < sr * 0.1:
+        if len(spec_segment) < 1:
             continue
         
-        samples_per_segment = int(segment_duration * sr)
-        for i in range(0, len(audio_segment), samples_per_segment):
-            segment = audio_segment[i:i+samples_per_segment]
-            if len(segment) < samples_per_segment // 2:
+        frames_per_segment = int(segment_duration * frames_per_second)
+        
+        for i in range(0, len(spec_segment), frames_per_segment):
+            segment = spec_segment[i:i+frames_per_segment]
+            if len(segment) < frames_per_segment // 2:
                 continue
                 
-            if len(segment) < samples_per_segment:
-                padded = np.zeros(samples_per_segment)
+            if len(segment) < frames_per_segment:
+                padded = np.zeros((frames_per_segment, specs.shape[1]))
                 padded[:len(segment)] = segment
                 segment = padded
-            elif len(segment) > samples_per_segment:
-                segment = segment[:samples_per_segment]
+            elif len(segment) > frames_per_segment:
+                segment = segment[:frames_per_segment]
             
-            segment_coeffs = pywt.wavedec(segment, WAVELET_NAME, level=WAVELET_LEVEL)
-            
-            features = process_wavelet_coefficients(segment_coeffs, segment_duration, sr)
-            
-            dataset.append((features, label))
+            dataset.append((segment, label))
     
     print(f"Dataset created: {len(dataset)} samples")
     return dataset
@@ -377,9 +400,9 @@ class SpeakerDataset(Dataset):
     def __getitem__(self, idx):
         return self.features[idx], self.labels[idx]
 
-def train_speaker_recognition_qcnn(audio_file, script_file):
+def train_speaker_recognition_qdvector(audio_file, script_file):
     """
-    Train a QCNN for speaker recognition using wavelet features.
+    Train a QDVector model for speaker recognition using spectral features.
     """
     print("Creating dataset from audio and script...")
     dataset = create_dataset_from_audio(audio_file, script_file)
@@ -408,13 +431,15 @@ def train_speaker_recognition_qcnn(audio_file, script_file):
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, drop_last=True)
     
-    print(f"Initializing Boosting QCNN with {NUM_BOOSTING_ESTIMATORS} estimators...")
-    boosting_model = BoostingQCNN(
+    input_dim = features.shape[2]
+    
+    print(f"Initializing Boosting QDVector with {NUM_BOOSTING_ESTIMATORS} estimators...")
+    boosting_model = BoostingQDVector(
         n_estimators=NUM_BOOSTING_ESTIMATORS,
         n_qubits=N_QUBITS,
         n_layers=N_LAYERS,
         n_classes=n_classes,
-        wavelet_features=WAVELET_FEATURES,
+        input_dim=input_dim,
         learning_rate=LEARNING_RATE
     )
     
@@ -437,8 +462,10 @@ def train_speaker_recognition_qcnn(audio_file, script_file):
     
     final_accuracy = 100 * correct / total
     print(f"Ensemble test accuracy: {final_accuracy:.2f}%")
+    
     from sklearn.metrics import confusion_matrix
     import seaborn as sns
+    
     cm = confusion_matrix(all_labels, all_preds)
     plt.figure(figsize=(10, 8))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
@@ -447,7 +474,7 @@ def train_speaker_recognition_qcnn(audio_file, script_file):
     plt.xlabel('Predicted')
     plt.ylabel('True')
     plt.title('Confusion Matrix')
-    plt.savefig('qcnn_wavelet_confusion_matrix.png')
+    plt.savefig('qdvector_confusion_matrix.png')
     
     print("\nComparing with best individual model:")
     best_model_idx = np.argmax(boosting_model.weights)
@@ -470,41 +497,38 @@ def train_speaker_recognition_qcnn(audio_file, script_file):
     
     return boosting_model, label_encoder
 
-def predict_speaker(model, audio_file, label_encoder, segment_duration=SEGMENT_DURATION):
+def predict_speaker(model, audio_file, label_encoder, segment_duration=1.0):
     """
     Predict speaker for each segment in an audio file using the boosting ensemble.
     """
-    y, sr = librosa.load(audio_file, sr=SAMPLE_RATE)
+    specs, y, sr = extract_features_from_file(audio_file)
     
-    samples_per_segment = int(segment_duration * sr)
+    frames_per_second = specs.shape[0] / (len(y) / sr)
+    frames_per_segment = int(segment_duration * frames_per_second)
     
     segments = []
     predictions = []
     times = []
     
-    for i in range(0, len(y), samples_per_segment):
-        segment = y[i:i+samples_per_segment]
-        if len(segment) < samples_per_segment // 2: 
+    for i in range(0, len(specs), frames_per_segment):
+        segment = specs[i:i+frames_per_segment]
+        if len(segment) < frames_per_segment // 2:
             continue
             
-        if len(segment) < samples_per_segment:
-            padded = np.zeros(samples_per_segment)
+        if len(segment) < frames_per_segment:
+            padded = np.zeros((frames_per_segment, specs.shape[1]))
             padded[:len(segment)] = segment
             segment = padded
-        elif len(segment) > samples_per_segment:
-            segment = segment[:samples_per_segment]
+        elif len(segment) > frames_per_segment:
+            segment = segment[:frames_per_segment]
         
-        segment_coeffs = pywt.wavedec(segment, WAVELET_NAME, level=WAVELET_LEVEL)
-        
-        features = process_wavelet_coefficients(segment_coeffs, segment_duration, sr)
-        
-        feature = torch.tensor(features, dtype=torch.float32).unsqueeze(0)
+        feature = torch.tensor(segment, dtype=torch.float32).unsqueeze(0)
         
         predicted = model.predict(feature)
         predicted_label = label_encoder.inverse_transform([predicted.item()])[0]
         
-        start_time = i / sr
-        end_time = min((i + samples_per_segment) / sr, len(y) / sr)
+        start_time = i / frames_per_second
+        end_time = min((i + frames_per_segment) / frames_per_second, len(y) / sr)
         
         segments.append((start_time, end_time))
         predictions.append(predicted_label)
@@ -518,88 +542,62 @@ def predict_speaker(model, audio_file, label_encoder, segment_duration=SEGMENT_D
     
     return results
 
-def save_qcnn_ensemble(model, label_encoder, filename='qcnn_wavelet_model.pth'):
-    """Save the QCNN ensemble model to disk"""
+def save_qdvector_ensemble(model, label_encoder, filename='qdvector_boosting_model.pth'):
+    """Save the QDVector ensemble model to disk"""
     model_data = {
         'n_estimators': model.n_estimators,
         'n_qubits': model.n_qubits,
         'n_layers': model.n_layers,
         'n_classes': model.n_classes,
-        'wavelet_features': model.wavelet_features,
+        'input_dim': model.input_dim,
         'weights': model.weights,
         'classes': label_encoder.classes_,
     }
     
     model_states = []
-    for i, qcnn_model in enumerate(model.models):
-        model_states.append(qcnn_model.state_dict())
+    for i, qdvector_model in enumerate(model.models):
+        model_states.append(qdvector_model.state_dict())
     
     model_data['model_states'] = model_states
     
     torch.save(model_data, filename)
     print(f"Model saved to {filename}")
 
-def load_qcnn_ensemble(filename='qcnn_wavelet_model.pth'):
-    """Load the QCNN ensemble model from disk"""
+def load_qdvector_ensemble(filename='qdvector_boosting_model.pth'):
+    """Load the QDVector ensemble model from disk"""
     model_data = torch.load(filename)
     
     label_encoder = LabelEncoder()
     label_encoder.classes_ = model_data['classes']
     
-    boosting_model = BoostingQCNN(
+    boosting_model = BoostingQDVector(
         n_estimators=model_data['n_estimators'],
         n_qubits=model_data['n_qubits'],
         n_layers=model_data['n_layers'],
         n_classes=model_data['n_classes'],
-        wavelet_features=model_data['wavelet_features']
+        input_dim=model_data['input_dim']
     )
     
     boosting_model.weights = model_data['weights']
     
     for i, state_dict in enumerate(model_data['model_states']):
         if i < len(boosting_model.models):
-            qcnn_model = QCNNHybrid(
+            qdvector_model = QDVectorHybrid(
                 n_qubits=model_data['n_qubits'],
                 n_layers=model_data['n_layers'],
                 n_classes=model_data['n_classes'],
-                wavelet_features=model_data['wavelet_features']
+                input_dim=model_data['input_dim']
             )
-            qcnn_model.load_state_dict(state_dict)
-            boosting_model.models[i] = qcnn_model
+            qdvector_model.load_state_dict(state_dict)
+            boosting_model.models[i] = qdvector_model
     
     print(f"Model loaded from {filename}")
     return boosting_model, label_encoder
-
-def visualize_wavelet_coefficients(audio_file, wavelet_name=WAVELET_NAME, level=WAVELET_LEVEL):
-    """
-    Visualize wavelet coefficients for a given audio file.
-    """
-    y, sr = librosa.load(audio_file, sr=SAMPLE_RATE)
-    
-    sample_length = min(5 * sr, len(y))
-    y_sample = y[:sample_length]
-    
-    coeffs = pywt.wavedec(y_sample, wavelet_name, level=level)
-    
-    fig, axs = plt.subplots(level + 1, 1, figsize=(10, 12))
-    
-    axs[0].plot(coeffs[0])
-    axs[0].set_title(f'Approximation Coefficients (Level {level})')
-    
-    for i, detail in enumerate(coeffs[1:]):
-        axs[i+1].plot(detail)
-        axs[i+1].set_title(f'Detail Coefficients (Level {level-i})')
-    
-    plt.tight_layout()
-    plt.savefig('wavelet_coefficients.png')
-    plt.close()
-    
-    return coeffs
 
 if __name__ == "__main__":
     audio_file = os.path.join("..", "..", "train_data", "meeting_1", "raw.wav")
     script_file = os.path.join("..", "..", "train_data", "meeting_1", "script.txt")
         
-    model, label_encoder = train_speaker_recognition_qcnn(audio_file, script_file)
+    model, label_encoder = train_speaker_recognition_qdvector(audio_file, script_file)
     
-    save_qcnn_ensemble(model, label_encoder, 'qcnn_wavelet_model.pth')
+    save_qdvector_ensemble(model, label_encoder, 'qdvector_boosting_model.pth')
