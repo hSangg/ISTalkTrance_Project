@@ -1,5 +1,4 @@
 import os
-import pickle
 from typing import Dict, List
 
 import joblib
@@ -13,22 +12,6 @@ from sklearn.model_selection import KFold
 from modules.config import Config
 from modules.feature_extractor import FeatureExtractor
 from modules.utils import Utils
-
-
-def train_hmm_model(speaker, data):
-    model_path = f"{Config.MODELS_DIR}/{speaker}.pkl"
-    if os.path.exists(model_path):
-        with open(model_path, "rb") as f:
-            model = pickle.load(f)
-    else:
-        model = hmm.GaussianHMM(n_components=5, covariance_type="diag", n_iter=1000)
-
-    X = np.vstack(data)
-    lengths = [len(x) for x in data]
-    model.fit(X, lengths)
-
-    with open(model_path, "wb") as f:
-        pickle.dump(model, f)
 
 
 class Trainner:
@@ -52,7 +35,7 @@ class Trainner:
     @staticmethod
     def train_hmm_model_all():
         speaker_data = {}
-        subfolders = [f.path for f in os.scandir(Config.DATASET_PATH) if f.is_dir()]
+        subfolders = [f.path for f in os.scandir(Config.TRAIN_VOICE) if f.is_dir()]
 
         for subfolder in subfolders:
             print("✨ start extract feature for sub-folder ✨ \t \t", subfolder)
@@ -72,7 +55,7 @@ class Trainner:
 
         for speaker, data in speaker_data.items():
             print("✨ start train for: ", speaker, " ✨")
-            train_hmm_model(speaker, data)
+            Utils.train_hmm_model(speaker, data)
 
     def extract_segmented_features(self, audio_path: str, segments: List[Dict]) -> Dict[str, np.ndarray]:
         try:
