@@ -16,7 +16,7 @@ class VoiceAuthenticator:
             
             for audio_file in audio_files:
                 audio_bytes = audio_file.read()
-                features = self.feature_extractor.extract_mfcc_from_bytes(audio_bytes)
+                features = self.feature_extractor.extract_mfcc_from_audio_bytes(audio_bytes)
                 all_features.append(features)
             
             combined_features = np.concatenate(all_features)
@@ -43,7 +43,7 @@ class VoiceAuthenticator:
 
     def authenticate(self, audio_bytes):
         try:
-            features = self.feature_extractor.extract_mfcc_from_bytes(audio_bytes)
+            features = self.feature_extractor.extract_mfcc_from_audio_bytes(audio_bytes)
             
             scores = {}
             for user_id, model in self.model_manager.models.items():

@@ -29,7 +29,7 @@ class BatchTrainer:
                 try:
                     with open(file_path, 'rb') as f:
                         audio_bytes = f.read()
-                        features = self.feature_extractor.extract_mfcc_from_bytes(audio_bytes)
+                        features = self.feature_extractor.extract_mfcc_from_audio_bytes(audio_bytes)
                         all_features.append(features)
                 except Exception as e:
                     continue

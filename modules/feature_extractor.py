@@ -8,7 +8,7 @@ from modules.config import Config
 
 class FeatureExtractor:
     @staticmethod
-    def extract_mfcc_from_bytes(audio_bytes):
+    def extract_mfcc_from_audio_bytes(audio_bytes):
         try:
             audio, sr = librosa.load(
                 io.BytesIO(audio_bytes), 
@@ -30,27 +30,7 @@ class FeatureExtractor:
             raise
 
     @staticmethod
-    def extract_features(audio_path, annotations):
-        y, sr = librosa.load(audio_path, sr=None)
-        speaker_data = {}
-        for start, end, speaker in annotations:
-            segment = y[int(start * sr): int(end * sr)]
-            # mfcc = librosa.feature.mfcc(y=segment, sr=sr, n_mfcc=13).T
-            mfcc = FeatureExtractor.extract_mfcc(segment, sr)
-
-            # Skip if MFCC extraction failed
-            if mfcc is None:
-                print(f"Skipping segment {start}-{end} for {speaker} due to MFCC extraction failure")
-                continue
-
-            if speaker not in speaker_data:
-                speaker_data[speaker] = []
-            speaker_data[speaker].append(mfcc)
-        return speaker_data
-
-    @staticmethod
-    def extract_mfcc(segment, sr):
-        """Extract MFCC features from a NumPy audio segment"""
+    def extract_mfcc_from_segment(segment, sr):
         try:
             if len(segment) < sr * 0.025:
                 segment = np.pad(segment, (0, int(sr * 0.025) - len(segment)))
@@ -67,3 +47,21 @@ class FeatureExtractor:
         except Exception as e:
             print(f"Error extracting MFCC for segment of length {len(segment)}: {e}")
             return None
+
+    @staticmethod
+    def extract_append_features(audio_path, annotations):
+        y, sr = librosa.load(audio_path, sr=None)
+        speaker_data = {}
+        for start, end, speaker in annotations:
+            segment = y[int(start * sr): int(end * sr)]
+            mfcc = FeatureExtractor.extract_mfcc_from_segment(segment, sr)
+
+            if mfcc is None:
+                print(f"❌ Skipping segment {start}-{end} for {speaker} due to MFCC extraction failure ❌")
+                continue
+
+            if speaker not in speaker_data:
+                speaker_data[speaker] = []
+            speaker_data[speaker].append(mfcc)
+        return speaker_data
+

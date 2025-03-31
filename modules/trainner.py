@@ -11,6 +11,7 @@ from sklearn.model_selection import KFold
 
 from modules.config import Config
 from modules.feature_extractor import FeatureExtractor
+from modules.model_manager import ModelManager
 from modules.utils import Utils
 
 
@@ -46,7 +47,7 @@ class Trainner:
                 continue
 
             annotations = Utils.load_annotations(annotation_file)
-            folder_speaker_data = FeatureExtractor.extract_features(audio_file, annotations)
+            folder_speaker_data = FeatureExtractor.extract_append_features(audio_file, annotations)
 
             for speaker, data in folder_speaker_data.items():
                 if speaker not in speaker_data:
@@ -55,7 +56,7 @@ class Trainner:
 
         for speaker, data in speaker_data.items():
             print("✨ start train for: ", speaker, " ✨")
-            Utils.train_hmm_model(speaker, data)
+            ModelManager.train_hmm_model(speaker, data)
 
     def extract_segmented_features(self, audio_path: str, segments: List[Dict]) -> Dict[str, np.ndarray]:
         try:

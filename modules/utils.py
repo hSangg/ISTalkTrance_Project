@@ -5,9 +5,7 @@ import random
 import string
 from typing import List, Dict, Union
 
-import numpy as np
 import soundfile as sf
-from hmmlearn import hmm
 
 from modules.config import Config
 
@@ -27,17 +25,7 @@ class Utils:
         return audio_path, script_path
 
     @staticmethod
-    def train_hmm_model(speaker, data):
-        model_path = f"{Config.MODELS_DIR}/{speaker}.pkl"
-
-        if os.path.exists(model_path):
-            os.remove(model_path)
-
-        model = hmm.GaussianHMM(n_components=5, covariance_type="diag", n_iter=Config.HMM_ITERATIONS)
-        X = np.vstack(data)
-        lengths = [len(x) for x in data]
-        model.fit(X, lengths)
-
+    def save_model(model, model_path):
         with open(model_path, "wb") as f:
             pickle.dump(model, f)
 
@@ -45,6 +33,13 @@ class Utils:
     def parse_time(time_str) -> float:
         h, m, s = map(float, time_str.split(":"))
         return h * 3600 + m * 60 + s
+
+    @staticmethod
+    def format_time(seconds: float) -> str:
+        h = int(seconds // 3600)
+        m = int((seconds % 3600) // 60)
+        s = seconds % 60
+        return f"{h:02}:{m:02}:{s:06.3f}"
 
     @staticmethod
     def parse_timestamp_script(self, script_path: str) -> List[Dict[str, Union[float, str]]]:

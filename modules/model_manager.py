@@ -7,6 +7,7 @@ from hmmlearn import hmm
 from sklearn.model_selection import KFold
 
 from modules.config import Config
+from modules.utils import Utils
 
 
 class ModelManager:
@@ -137,3 +138,17 @@ class ModelManager:
 
     def list_models(self):
         return list(self.models.keys())
+
+    @staticmethod
+    def train_hmm_model(speaker, data):
+        model_path = f"{Config.MODELS_DIR}/{speaker}.pkl"
+
+        if os.path.exists(model_path):
+            os.remove(model_path)
+
+        model = hmm.GaussianHMM(n_components=5, covariance_type="diag", n_iter=Config.HMM_ITERATIONS)
+        X = np.vstack(data)
+        lengths = [len(x) for x in data]
+        model.fit(X, lengths)
+
+        Utils.save_model(model, model_path)
