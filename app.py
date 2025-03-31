@@ -1,5 +1,6 @@
 import os
 import pickle
+import time
 
 import librosa
 from flask import Flask, request, jsonify
@@ -82,8 +83,6 @@ def train_batch():
             "success": False,
             "error": str(e),
         }), 500
-
-import time
 
 @app.route('/authenticate', methods=['POST'])
 def authenticate():
