@@ -1,43 +1,96 @@
+import logging
 import os
-import numpy as np
+import time
+
+import joblib  # For saving HMM models
 import librosa
+import numpy as np
 import pennylane as qml
 import torch
 import torch.nn as nn
-from sklearn.preprocessing import StandardScaler
+import torch.nn.functional as F
 from hmmlearn import hmm
-import logging
-import time
-import joblib
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
-class DVECTOR_QCNN_HMM:
-    def __init__(self, wav_file, script_file, n_qubits=4, model_dir='dvector_hmm_qcnn_models'):
+class XVectorExtractor(nn.Module):
+    """
+    X-Vector neural network for speaker embeddings
+    Based on the architecture from Snyder et al. (2018)
+    """
+    def __init__(self, input_dim=13, embedding_dim=128):
+        super(XVectorExtractor, self).__init__()
+        
+        # Frame-level layers
+        self.layer1 = nn.Conv1d(input_dim, 512, kernel_size=5, dilation=1)
+        self.layer2 = nn.Conv1d(512, 512, kernel_size=3, dilation=2)
+        self.layer3 = nn.Conv1d(512, 512, kernel_size=3, dilation=3)
+        self.layer4 = nn.Conv1d(512, 512, kernel_size=1)
+        self.layer5 = nn.Conv1d(512, 1500, kernel_size=1)
+        
+        # Stats pooling
+        
+        # Segment-level layers
+        self.layer6 = nn.Linear(3000, 512)
+        self.layer7 = nn.Linear(512, embedding_dim)
+        
+        # Output layer (for training purposes)
+        self.output = nn.Linear(embedding_dim, embedding_dim)
+        
+    def forward(self, x):
+        # Input x shape: (batch_size, time_steps, features)
+        # Need to convert to (batch_size, features, time_steps) for Conv1D
+        x = x.transpose(1, 2)
+        
+        # Frame-level layers
+        x = F.relu(self.layer1(x))
+        x = F.relu(self.layer2(x))
+        x = F.relu(self.layer3(x))
+        x = F.relu(self.layer4(x))
+        x = F.relu(self.layer5(x))
+        
+        # Stats pooling - compute mean and std along time dimension
+        mean = torch.mean(x, dim=2)
+        std = torch.std(x, dim=2)
+        stats = torch.cat((mean, std), dim=1)
+        
+        # Segment-level layers
+        x = F.relu(self.layer6(stats))
+        embeddings = self.layer7(x)
+        
+        # Output layer (not needed for feature extraction)
+        # output = self.output(embeddings)
+        
+        return embeddings
+
+class XVector_QCNN_HMM:
+    def __init__(self, wav_file, script_file, n_qubits=4, model_dir='xvector_hmm_qcnn_models', embedding_dim=128):
         """
-        Initialize Quantum Speaker Identification system with DVectors
+        Initialize Quantum Speaker Identification system using X-Vectors
         
         Args:
             wav_file (str): Path to the audio file
             script_file (str): Path to the script file
             n_qubits (int): Number of qubits to use in quantum feature mapping
             model_dir (str): Directory to save trained models
+            embedding_dim (int): Dimension of X-Vector embeddings
         """
         self.wav_file = wav_file
         self.script_file = script_file
         self.n_qubits = n_qubits
         self.model_dir = model_dir
+        self.embedding_dim = embedding_dim
         
         # Set up quantum device
         self.dev = qml.device("default.qubit", wires=n_qubits)
         
+        # Initialize X-Vector extractor
+        self.xvector_extractor = XVectorExtractor(input_dim=13, embedding_dim=embedding_dim)
+        
         # Speakers and segments
         self.speakers = []
         self.segments = []
-        
-        # Initialize the DVectorExtractor
-        self.dvector_extractor = DVectorExtractor()
         
         # Quantum feature mapping circuit
         @qml.qnode(self.dev)
@@ -46,7 +99,7 @@ class DVECTOR_QCNN_HMM:
             Quantum feature mapping circuit
             
             Args:
-                inputs (array): Input classical features
+                inputs (array): Input X-Vector features
                 weights (array): Parameterized weights for quantum gates
             
             Returns:
@@ -95,7 +148,7 @@ class DVECTOR_QCNN_HMM:
     
     def extract_quantum_enhanced_features(self):
         """
-        Extract DVector features and apply quantum feature mapping
+        Extract X-Vector features and apply quantum feature mapping
     
         Returns:
             dict: Quantum-enhanced features for each speaker
@@ -118,35 +171,54 @@ class DVECTOR_QCNN_HMM:
             # Extract audio segment
             segment_audio = y[start_sample:end_sample]
             
-            # Extract DVector features
-            print(f"Extracting DVectors for segment {segment['speaker']} from {segment['start_time']} to {segment['end_time']}")
-            dvectors = self.dvector_extractor.extract(segment_audio, sr)
+            # Extract MFCC features as input to X-Vector
+            print(f"Extracting features for segment {segment['speaker']} from {segment['start_time']} to {segment['end_time']}")
+            mfccs = librosa.feature.mfcc(y=segment_audio, sr=sr, n_mfcc=13)
             
-            # Standardize features
-            scaler = StandardScaler()
-            dvectors_scaled = scaler.fit_transform(dvectors)
+            # Prepare input for X-Vector network
+            mfccs = torch.from_numpy(mfccs.T).float().unsqueeze(0)  # Add batch dimension
+            
+            # Extract X-Vector embeddings
+            self.xvector_extractor.eval()
+            with torch.no_grad():
+                xvector = self.xvector_extractor(mfccs)
+                xvector = xvector.squeeze(0).numpy()  # Remove batch dimension
             
             print(f"Applying quantum feature mapping for segment {segment['speaker']}")
-            # Apply quantum feature mapping
+            # Apply quantum feature mapping to X-Vector embedding
             quantum_features = []
-            for feature_vector in dvectors_scaled:
-                # Map first n_qubits features to quantum circuit
+            
+            # Map first n_qubits features of X-Vector to quantum circuit
+            # We use multiple quantum mappings to cover the full X-Vector
+            num_mappings = self.embedding_dim // self.n_qubits
+            for i in range(num_mappings):
+                start_idx = i * self.n_qubits
+                end_idx = min((i + 1) * self.n_qubits, self.embedding_dim)
+                
+                if end_idx <= start_idx:
+                    break
+                    
                 quantum_mapped = self.quantum_feature_map(
-                    feature_vector[:self.n_qubits], 
+                    xvector[start_idx:end_idx], 
                     quantum_weights
                 )
-                quantum_features.append(quantum_mapped)
+                quantum_features.extend(quantum_mapped)
             
-            speaker_features[segment['speaker']].append(np.array(quantum_features))
+            # Add remaining features directly
+            if self.embedding_dim % self.n_qubits != 0:
+                remaining_features = xvector[num_mappings * self.n_qubits:]
+                quantum_features.extend(remaining_features)
+            
+            speaker_features[segment['speaker']].append(np.array([quantum_features]))
             
             end_time_segment = time.time()  # Log end time for each segment
             print(f"Processed segment {segment['speaker']} in {end_time_segment - start_time_segment:.2f} seconds")
         
         return speaker_features
-    
+
     def train_hmm_models(self, quantum_features):
         """
-        Train HMM models using quantum-enhanced features
+        Train HMM models using quantum-enhanced X-Vector features
         
         Args:
             quantum_features (dict): Quantum-enhanced features for each speaker
@@ -174,7 +246,7 @@ class DVECTOR_QCNN_HMM:
         
         # Save the trained HMM models
         for speaker, model in hmm_models.items():
-            model_filename = os.path.join(self.model_dir, f"hmm_model_{speaker}.pkl")
+            model_filename = os.path.join(self.model_dir, f"{speaker}.pkl")
             joblib.dump(model, model_filename)
             logging.info(f"Saved HMM model for {speaker} at {model_filename}")
         
@@ -190,6 +262,14 @@ class DVECTOR_QCNN_HMM:
         weights_filename = os.path.join(self.model_dir, 'quantum_weights.npy')
         np.save(weights_filename, weights)
         logging.info(f"Saved quantum weights at {weights_filename}")
+    
+    def save_xvector_model(self):
+        """
+        Save the X-Vector extractor model
+        """
+        model_filename = os.path.join(self.model_dir, 'xvector_model.pt')
+        torch.save(self.xvector_extractor.state_dict(), model_filename)
+        logging.info(f"Saved X-Vector model at {model_filename}")
     
     def identify_speaker(self, hmm_models, test_features):
         """
@@ -226,14 +306,19 @@ class DVECTOR_QCNN_HMM:
         # Parse script and extract segments
         self.parse_script()
         
-        # Extract quantum-enhanced features
+        # Extract quantum-enhanced X-Vector features
         quantum_features = self.extract_quantum_enhanced_features()
         
         # Train HMM models
         hmm_models = self.train_hmm_models(quantum_features)
         
+        # Save X-Vector model
+        self.save_xvector_model()
+        
         # Perform testing
         results = {}
+        quantum_weights = np.random.randn(self.n_qubits)
+        
         for segment in self.segments:
             # Load audio segment
             y, sr = librosa.load(
@@ -242,25 +327,44 @@ class DVECTOR_QCNN_HMM:
                 duration=segment['end_time'] - segment['start_time']
             )
             
-            # Extract DVector features
-            dvectors = self.dvector_extractor.extract(y, sr)
+            # Extract MFCC features as input to X-Vector
+            mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
             
-            # Standardize features
-            scaler = StandardScaler()
-            dvectors_scaled = scaler.fit_transform(dvectors)
+            # Prepare input for X-Vector network
+            mfccs = torch.from_numpy(mfccs.T).float().unsqueeze(0)  # Add batch dimension
             
-            # Apply quantum feature mapping
-            quantum_weights = np.random.randn(self.n_qubits)
+            # Extract X-Vector embeddings
+            self.xvector_extractor.eval()
+            with torch.no_grad():
+                xvector = self.xvector_extractor(mfccs)
+                xvector = xvector.squeeze(0).numpy()  # Remove batch dimension
+            
+            # Apply quantum feature mapping to X-Vector embedding
             test_quantum_features = []
-            for feature_vector in dvectors_scaled:
+            
+            # Map first n_qubits features of X-Vector to quantum circuit
+            # We use multiple quantum mappings to cover the full X-Vector
+            num_mappings = self.embedding_dim // self.n_qubits
+            for i in range(num_mappings):
+                start_idx = i * self.n_qubits
+                end_idx = min((i + 1) * self.n_qubits, self.embedding_dim)
+                
+                if end_idx <= start_idx:
+                    break
+                    
                 quantum_mapped = self.quantum_feature_map(
-                    feature_vector[:self.n_qubits], 
+                    xvector[start_idx:end_idx], 
                     quantum_weights
                 )
-                test_quantum_features.append(quantum_mapped)
+                test_quantum_features.extend(quantum_mapped)
             
-            # Convert to numpy array
-            test_quantum_features = np.array(test_quantum_features)
+            # Add remaining features directly
+            if self.embedding_dim % self.n_qubits != 0:
+                remaining_features = xvector[num_mappings * self.n_qubits:]
+                test_quantum_features.extend(remaining_features)
+            
+            # Convert to numpy array and reshape for HMM
+            test_quantum_features = np.array([test_quantum_features])
             
             # Identify speaker
             predicted_speaker = self.identify_speaker(
@@ -276,129 +380,10 @@ class DVECTOR_QCNN_HMM:
         
         logging.info("Speaker identification completed.")
         return results
-
-
-class DVectorExtractor(nn.Module):
-    """
-    Deep Speaker Embedding (d-vector) extractor based on a deep neural network
-    """
-    def __init__(self, input_dim=40, hidden_dim=256, embedding_dim=256):
-        """
-        Initialize the DVectorExtractor
-        
-        Args:
-            input_dim (int): Dimension of input features (typically mel filterbanks)
-            hidden_dim (int): Hidden layer dimension
-            embedding_dim (int): Dimension of the speaker embedding
-        """
-        super(DVectorExtractor, self).__init__()
-        
-        # LSTM-based feature extractor
-        self.lstm = nn.LSTM(
-            input_size=input_dim,
-            hidden_size=hidden_dim,
-            num_layers=3,
-            batch_first=True,
-            bidirectional=True
-        )
-        
-        # Temporal pooling layer
-        self.attention = nn.Sequential(
-            nn.Linear(hidden_dim * 2, 128),
-            nn.ReLU(),
-            nn.Linear(128, 1)
-        )
-        
-        # Embedding layer
-        self.embedding = nn.Linear(hidden_dim * 2, embedding_dim)
-        
-    def forward(self, x):
-        """
-        Forward pass through the network
-        
-        Args:
-            x (torch.Tensor): Input features of shape (batch_size, seq_len, input_dim)
-            
-        Returns:
-            torch.Tensor: Speaker embedding of shape (batch_size, embedding_dim)
-        """
-        # Pass through LSTM
-        lstm_out, _ = self.lstm(x)  # (batch_size, seq_len, hidden_dim*2)
-        
-        # Compute attention weights
-        attention_weights = self.attention(lstm_out)  # (batch_size, seq_len, 1)
-        attention_weights = torch.softmax(attention_weights, dim=1)
-        
-        # Apply weighted sum to get context vector
-        context = torch.sum(lstm_out * attention_weights, dim=1)  # (batch_size, hidden_dim*2)
-        
-        # Generate embedding
-        embedding = self.embedding(context)  # (batch_size, embedding_dim)
-        
-        # L2 normalization for cosine similarity
-        embedding = torch.nn.functional.normalize(embedding, p=2, dim=1)
-        
-        return embedding
     
-    def extract(self, audio, sr):
-        """
-        Extract d-vector features from audio
-        
-        Args:
-            audio (numpy.ndarray): Audio signal
-            sr (int): Sample rate
-            
-        Returns:
-            numpy.ndarray: D-vector features
-        """
-        # Extract mel spectrograms as input features
-        mel_specs = self.extract_mel_spectrograms(audio, sr)
-        
-        # Convert to torch tensor
-        mel_specs_tensor = torch.tensor(mel_specs, dtype=torch.float32).unsqueeze(0)  # Add batch dimension
-        
-        # Set model to evaluation mode
-        self.eval()
-        
-        # Extract embeddings
-        with torch.no_grad():
-            embeddings = self.forward(mel_specs_tensor).squeeze(0).numpy()
-        
-        return embeddings.reshape(1, -1)  # Reshape to ensure 2D
-    
-    def extract_mel_spectrograms(self, audio, sr, n_mels=40, n_fft=512, hop_length=160):
-        """
-        Extract mel spectrograms from audio
-        
-        Args:
-            audio (numpy.ndarray): Audio signal
-            sr (int): Sample rate
-            n_mels (int): Number of Mel bins
-            n_fft (int): FFT window size
-            hop_length (int): Hop length for STFT
-            
-        Returns:
-            numpy.ndarray: Mel spectrograms
-        """
-        # Extract mel spectrograms
-        mel_specs = librosa.feature.melspectrogram(
-            y=audio, 
-            sr=sr,
-            n_fft=n_fft,
-            hop_length=hop_length,
-            n_mels=n_mels
-        )
-        
-        # Convert to log scale
-        mel_specs = librosa.power_to_db(mel_specs, ref=np.max)
-        
-        # Transpose to get time as first dimension
-        mel_specs = mel_specs.T
-        
-        return mel_specs
 wav_path = os.path.join("..", "..", "train_data", "meeting_1", "raw.wav")
 script = os.path.join("..", "..", "train_data", "meeting_1", "script.txt")
 
-trainer = DVECTOR_QCNN_HMM(wav_path, script)
+trainer = XVector_QCNN_HMM(wav_path, script)
 result = trainer.run_speaker_identification()
 print(result)

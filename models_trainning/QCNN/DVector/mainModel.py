@@ -1,17 +1,18 @@
-import numpy as np
-import pandas as pd
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-import pennylane as qml
+import os
+
 import librosa
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import pennylane as qml
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import accuracy_score
-import torch.nn.functional as F
-import os
+from torch.utils.data import Dataset, DataLoader
+
 np.random.seed(42)
 torch.manual_seed(42)
 
