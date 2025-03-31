@@ -2,6 +2,7 @@
 20_percent_test
 /env
 /train_voice
+/un_train_voice
 /train_data
 /uploads
 /__pycache__

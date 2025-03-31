@@ -8,8 +8,15 @@ from modules.authenticate import VoiceAuthenticator
 from modules.batch_trainer import BatchTrainer
 from modules.config import Config
 from modules.feature_extractor import FeatureExtractor
+from modules.model_manager import ModelManager
 from modules.utils import Utils
 
+COMPLETED = "Completed"
+ERROR = "error"
+OUTPUT = "output"
+MESSAGE = "message"
+MODEL_EXTENSION = ".pkl"
+HHMMSS_FORMAT = "%H:%M:%S"
 NO_FILES_PROVIDED = "No files provided"
 SCRIPT = "script"
 AUDIO = "audio"
@@ -122,7 +129,7 @@ def train_all():
 @app.route("/train", methods=["POST"])
 def train():
     if AUDIO not in request.files or SCRIPT not in request.files:
-        return jsonify({"error": "No files provided"}), 400
+        return jsonify({ERROR: NO_FILES_PROVIDED}), 400
 
     user_dir = os.path.join(Config.TRAIN_VOICE, "") # create random folder name
     os.makedirs(user_dir, exist_ok=True)
@@ -133,7 +140,7 @@ def train():
     audio_path, script_path = Utils.store_data(audio_file, script_file)
 
     annotations = Utils.load_annotations(script_path)
-    new_speaker_data = FeatureExtractor.extract_features(audio_path, annotations)
+    new_speaker_data = FeatureExtractor.extract_append_features(audio_path, annotations)
 
     for speaker, new_data in new_speaker_data.items():
         all_data = new_data.copy()
@@ -143,21 +150,21 @@ def train():
 
             if os.path.exists(annotation_file) and os.path.exists(audio_file):
                 existing_annotations = Utils.load_annotations(annotation_file)
-                existing_speaker_data = FeatureExtractor.extract_features(audio_file, existing_annotations)
+                existing_speaker_data = FeatureExtractor.extract_append_features(audio_file, existing_annotations)
 
                 if speaker in existing_speaker_data:
                     all_data.extend(existing_speaker_data[speaker])
 
         print("✨ train speaker: \t", speaker)
-        Utils.train_hmm_model(speaker, all_data)
+        ModelManager.train_hmm_model(speaker, all_data)
 
-    return jsonify({"message": "Training completed"}), 200
+    return jsonify({MESSAGE: COMPLETED}), 200
 
 @app.route("/predict", methods=["POST"])
 def predict():
     global start, end, best_speaker, best_score, mfcc
     if AUDIO not in request.files or SCRIPT not in request.files:
-        return jsonify({"error": "No files provided"}), 400
+        return jsonify({ERROR: NO_FILES_PROVIDED}), 400
 
     audio_file = request.files.get(AUDIO)
     script_file = request.files.get(SCRIPT)
@@ -176,12 +183,12 @@ def predict():
     predictions = []
     for start, end in segments:
         segment = y[int (start * sr) : int(end * sr)]
-        mfcc = FeatureExtractor.extract_mfcc(segment, sr)
+        mfcc = FeatureExtractor.extract_mfcc_from_segment(segment, sr)
         best_speaker = None
         best_score = float("-inf")
 
         for model_file in os.listdir(Config.MODELS_DIR):
-            speaker = model_file.replace(".pkl", "")
+            speaker = model_file.replace(MODEL_EXTENSION, "")
             with open(os.path.join(Config.MODELS_DIR, model_file), "rb") as f:
                 model = pickle.load(f)
 
@@ -190,13 +197,12 @@ def predict():
                 best_score = score
                 best_speaker = speaker
 
-        predictions.append(f"{start} {end} {best_speaker}")
+        predictions.append(f"{Utils.format_time(start)} {Utils.format_time(end)} {best_speaker}")
 
-    print("writing output..............")
     with open(script_path, "w") as f:
         f.write("\n".join(predictions))
 
-    return jsonify({"message": "Completed", "output": predictions}), 200
+    return jsonify({MESSAGE: COMPLETED, OUTPUT: predictions}), 200
 
 if __name__ == '__main__':
     app.run(debug=False)
