@@ -20,3 +20,7 @@ train/*
 !train/extract.py
 /speechbrain_models
 /.idea
+/rnn_wavelet_models
+/test_voice
+/models_trainning
+/rnn_xvector_models
