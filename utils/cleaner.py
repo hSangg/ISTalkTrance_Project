@@ -83,16 +83,16 @@ def convert_wav_case(base_folder):
 
 if __name__ == "__main__":
     # Define the base folder containing the train_voice structure
-    base_folder = "train_voice"
+    base_folder = "test_voice"
 
     # Check if the folder exists
     if os.path.exists(base_folder) and os.path.isdir(base_folder):
         process_folders(base_folder)
     else:
         print(f"The folder '{base_folder}' does not exist.")
-
-    # Check if the folder exists
-    if os.path.exists(base_folder) and os.path.isdir(base_folder):
-        convert_wav_case(base_folder)
-    else:
-        print(f"The folder '{base_folder}' does not exist.")
+    #
+    # # Check if the folder exists
+    # if os.path.exists(base_folder) and os.path.isdir(base_folder):
+    #     convert_wav_case(base_folder)
+    # else:
+    #     print(f"The folder '{base_folder}' does not exist.")

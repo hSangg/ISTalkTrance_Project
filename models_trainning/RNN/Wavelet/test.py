@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pywt
 import torch
@@ -15,6 +17,13 @@ class SpeakerRNN(nn.Module):
         _, (hn, _) = self.lstm(x)
         out = self.fc(hn[-1])
         return out
+
+
+def format_time(seconds: float) -> str:
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = seconds % 60
+    return f"{h:02}:{m:02}:{s:06.3f}"
 
 
 def extract_wavelet_features(audio_path, segments, wavelet='db4', level=1):
@@ -90,15 +99,50 @@ def process_audio_and_script(audio_path, script_path, model_path, speaker_map_pa
 
     with open(output_script, "w", encoding="utf-8") as file:
         for (start, end), speaker in zip(segments, predicted_speakers):
-            file.write(f"{start} {end} {speaker}\n")
+            file.write(f"{format_time(start)} {format_time(end)} {speaker}\n")
     print(f"Script mới được lưu tại: {output_script}")
 
 
-# Chạy thử nghiệm
-audio_file = "test_voice/chicanduocsong_chiathatbaira/raw.WAV"
-script_file = "test_voice/chicanduocsong_chiathatbaira/script.txt"
-model_path = "rnn_wavelet_models/model.pth"
-speaker_map_path = "rnn_wavelet_models/speaker_to_idx.pth"
-output_script = "test_voice/script_new.txt"
+def process_all_subfolders(test_voice_folder, model_path, speaker_map_path):
+    if not os.path.exists(model_path):
+        print(f"Error: Model file not found at {model_path}")
+        return
 
-process_audio_and_script(audio_file, script_file, model_path, speaker_map_path, output_script)
+    if not os.path.exists(speaker_map_path):
+        print(f"Error: Speaker mapping file not found at {speaker_map_path}")
+        return
+
+    for subfolder in os.listdir(test_voice_folder):
+        subfolder_path = os.path.join(test_voice_folder, subfolder)
+
+        if not os.path.isdir(subfolder_path):
+            continue
+
+        print(f"\nProcessing folder: {subfolder}")
+
+        audio_file = os.path.join(subfolder_path, "raw.WAV")
+        if not os.path.exists(audio_file):
+            for ext in ["wav", "mp3", "flac"]:
+                alt_audio = os.path.join(subfolder_path, f"raw.{ext}")
+                if os.path.exists(alt_audio):
+                    audio_file = alt_audio
+                    break
+
+        script_file = os.path.join(subfolder_path, "script.txt")
+        output_script = os.path.join(subfolder_path, "script_predicted.txt")
+
+        process_audio_and_script(
+            audio_file,
+            script_file,
+            model_path,
+            speaker_map_path,
+            output_script
+        )
+
+
+if __name__ == "__main__":
+    test_voice_folder = "test_voice"
+    model_path = "rnn_wavelet_models/model.pth"
+    speaker_map_path = "rnn_wavelet_models/speaker_to_idx.pth"
+
+    process_all_subfolders(test_voice_folder, model_path, speaker_map_path)
