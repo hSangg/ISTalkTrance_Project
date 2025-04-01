@@ -5,6 +5,7 @@
 /un_train_voice
 /train_data
 /uploads
+/rnn_xvector_models
 /__pycache__
 document/main.synctex.gz
 document/main.pdf
