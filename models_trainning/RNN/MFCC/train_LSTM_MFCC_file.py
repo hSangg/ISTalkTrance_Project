@@ -1,13 +1,14 @@
 import os
-import numpy as np
-import pandas as pd
-from sklearn.model_selection import train_test_split
+
 import librosa
+import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
+from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
+
 
 def find_wav_txt_pairs(root_dir):
     """Tìm tất cả các cặp file raw.wav và script.txt trong các thư mục con"""
@@ -79,34 +80,26 @@ def extract_mfcc(audio_path, start_time, end_time, sr=16000):
         numpy.ndarray: MFCC features kết hợp với delta features
     """
     try:
-        # Load audio file
         y, sr = librosa.load(audio_path, sr=sr)
         
-        # Convert timestamps to samples
         start_sample = int(time_to_seconds(start_time) * sr)
         end_sample = int(time_to_seconds(end_time) * sr)
         
-        # Extract audio segment
         audio_segment = y[start_sample:end_sample]
         
-        # Extract base MFCC features
         mfcc_features = librosa.feature.mfcc(
             y=audio_segment, 
             sr=sr,
-            n_mfcc=20  # Keeping 20 MFCCs as in original
+            n_mfcc=20
         )
-        
-        # Calculate delta features
+
         mfcc_delta = librosa.feature.delta(mfcc_features)
         mfcc_delta2 = librosa.feature.delta(mfcc_features, order=2)
-        
-        # Combine all features
+
         combined_mfcc = np.vstack([mfcc_features, mfcc_delta, mfcc_delta2])
-        
-        # Transpose to get time as first dimension
+
         combined_mfcc = combined_mfcc.T
-        
-        # Pad or truncate to fixed length (100 frames as in original)
+
         if combined_mfcc.shape[0] < 100:
             combined_mfcc = np.pad(
                 combined_mfcc,
@@ -183,13 +176,11 @@ def process_all_data(root_dir):
                 print(f"Error loading audio file {pair['wav_path']}: {str(e)}")
                 continue
             
-            # Xử lý từng đoạn trong file
             for i, ((start_time, end_time), speaker) in enumerate(zip(timestamps, labels)):
                 try:
                     print(f"\nProcessing segment {i+1}/{len(timestamps)}")
                     print(f"Time: {start_time} - {end_time}, Speaker: {speaker}")
                     
-                    # Trích xuất MFCC features
                     mfcc = extract_mfcc(pair['wav_path'], start_time, end_time)
                     print(f"Extracted MFCC shape: {mfcc.shape}")
                     
@@ -290,7 +281,6 @@ def train_speaker_recognition(root_dir, epochs=100):
             print(f'Epoch [{epoch+1}/{epochs}], Loss: {total_loss/len(train_loader):.4f}, '
                   f'Accuracy: {100 * correct / total:.2f}%')
     
-    # Lưu model và label encoder
     print("Lưu model và label encoder...")
     torch.save({
         'model_state_dict': model.state_dict(),
