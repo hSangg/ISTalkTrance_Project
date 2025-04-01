@@ -9,7 +9,7 @@ from modules.batch_trainer import BatchTrainer
 from modules.config import Config
 from modules.feature_extractor import FeatureExtractor
 from modules.utils import Utils
-
+from utils.benchmark import test_directory
 NO_FILES_PROVIDED = "No files provided"
 SCRIPT = "script"
 AUDIO = "audio"
@@ -197,6 +197,19 @@ def predict():
         f.write("\n".join(predictions))
 
     return jsonify({"message": "Completed", "output": predictions}), 200
+
+@app.route("/benchmark", methods=["GET"])
+def benchmark():
+    train_voice_dir = "train_voice"
+    results = test_directory(train_voice_dir)
+
+    print(f"Overall Accuracy: {results['accuracy']:.2%}")
+    print("\nPer-speaker metrics:")
+    for speaker, metrics in results['precision_recall_f1'].items():
+        print(f"\nSpeaker {speaker}:")
+        print(f"Precision: {metrics['precision']:.2%}")
+        print(f"Recall: {metrics['recall']:.2%}")
+        print(f"F1-score: {metrics['f1_score']:.2%}")
 
 if __name__ == '__main__':
     app.run(debug=False)
