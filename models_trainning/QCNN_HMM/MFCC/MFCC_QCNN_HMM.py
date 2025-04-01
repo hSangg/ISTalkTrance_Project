@@ -1,283 +1,163 @@
-import logging
-import os
-import time
-
-import joblib  # For saving HMM models
-import librosa
 import numpy as np
+import librosa
 import pennylane as qml
 from hmmlearn import hmm
-from sklearn.preprocessing import StandardScaler
+import os
+from scipy.io import wavfile
+import warnings
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import precision_recall_fscore_support
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+warnings.filterwarnings('ignore')
 
-class MFCC_QCNN_HMM:
-    def __init__(self, wav_file, script_file, n_qubits=4, model_dir='mfcc_hmm_qcnn_models'):
-        """
-        Initialize Quantum Speaker Identification system
-        
-        Args:
-            wav_file (str): Path to the audio file
-            script_file (str): Path to the script file
-            n_qubits (int): Number of qubits to use in quantum feature mapping
-            model_dir (str): Directory to save trained models
-        """
-        self.wav_file = wav_file
-        self.script_file = script_file
+class SpeakerIdentification:
+    def __init__(self, n_mfcc=13, n_qubits=4, n_hmm_components=5):
+        self.n_mfcc = n_mfcc
         self.n_qubits = n_qubits
-        self.model_dir = model_dir
+        self.n_hmm_components = n_hmm_components
+        self.speakers = {}
+        self.hmm_models = {}
         
-        # Set up quantum device
-        self.dev = qml.device("default.qubit", wires=n_qubits)
-        
-        # Speakers and segments
-        self.speakers = []
-        self.segments = []
-        
-        # Quantum feature mapping circuit
-        @qml.qnode(self.dev)
-        def quantum_feature_map(inputs, weights):
-            """
-            Quantum feature mapping circuit
-            
-            Args:
-                inputs (array): Input classical features
-                weights (array): Parameterized weights for quantum gates
-            
-            Returns:
-                Quantum state representation
-            """
-            # Encode classical features into quantum states
-            for i in range(min(len(inputs), self.n_qubits)):
+        dev = qml.device("default.qubit", wires=n_qubits)
+        @qml.qnode(dev)
+        def quantum_circuit(inputs, weights):
+            for i in range(n_qubits):
                 qml.RY(inputs[i], wires=i)
-            
-            # Apply entangling layers
-            for i in range(self.n_qubits):
-                qml.RZ(weights[i], wires=i)
-                qml.CNOT(wires=[i, (i+1) % self.n_qubits])
-            
-            # Return quantum feature expectations
-            return [qml.expval(qml.PauliZ(w)) for w in range(self.n_qubits)]
+            for i in range(n_qubits):
+                qml.CRZ(weights[i], wires=[i, (i+1)%n_qubits])
+            return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
         
-        self.quantum_feature_map = quantum_feature_map
+        self.qcnn = quantum_circuit
+        self.weights = np.random.randn(n_qubits)
 
-        # Create directory for saving models if it doesn't exist
-        if not os.path.exists(self.model_dir):
-            os.makedirs(self.model_dir)
+    def extract_mfcc(self, audio_path, start_time, end_time):
+        y, sr = librosa.load(audio_path, sr=None)
+        start_sample = int(start_time * sr)
+        end_sample = int(end_time * sr)
         
-    def parse_script(self):
-        """Parse the script file to extract speaker segments."""
-        logging.info("Parsing script file to extract segments.")
-        with open(self.script_file, 'r') as f:
+        audio_segment = y[start_sample:end_sample]
+        mfcc = librosa.feature.mfcc(y=audio_segment, sr=sr, n_mfcc=self.n_mfcc)
+        return mfcc.T
+
+    def process_qcnn(self, mfcc_features):
+        quantum_features = []
+        for frame in mfcc_features:
+            if len(frame) < self.n_qubits:
+                frame = np.pad(frame, (0, self.n_qubits - len(frame)))
+            else:
+                frame = frame[:self.n_qubits]
+            
+            q_features = self.qcnn(frame, self.weights)
+            quantum_features.append(q_features)
+        return np.array(quantum_features)
+
+    def parse_script(self, script_path):
+        with open(script_path, 'r') as f:
             lines = f.readlines()
         
-        self.segments = []
         for line in lines:
-            start, end, speaker = line.strip().split()
-            self.segments.append({
-                'start_time': self.time_to_seconds(start),
-                'end_time': self.time_to_seconds(end),
-                'speaker': speaker
-            })
-        
-        self.speakers = list(set(seg['speaker'] for seg in self.segments))
-        logging.info(f"Found {len(self.speakers)} speakers and {len(self.segments)} segments.")
-        
+            parts = line.strip().split()
+            start_time = self.time_to_seconds(parts[0])
+            end_time = self.time_to_seconds(parts[1])
+            speaker = parts[2]
+            
+            if speaker not in self.speakers:
+                self.speakers[speaker] = []
+            self.speakers[speaker].append((start_time, end_time))
+
     def time_to_seconds(self, time_str):
-        """Convert time string to seconds."""
-        h, m, s = map(float, time_str.split(':'))
+        h, m, s = map(int, time_str.split(':'))
         return h * 3600 + m * 60 + s
 
-    
-    def extract_quantum_enhanced_features(self):
-        """
-        Extract MFCC features and apply quantum feature mapping
-    
-        Returns:
-            dict: Quantum-enhanced features for each speaker
-        """
-        # Load audio file
-        y, sr = librosa.load(self.wav_file)
+    def train_test_split(self):
+        train_data = {}
+        test_data = {}
         
-        # Prepare features for each speaker
-        speaker_features = {speaker: [] for speaker in self.speakers}
+        for speaker, segments in self.speakers.items():
+            if len(segments) > 1:  # Đảm bảo có đủ segment để chia
+                train_segments, test_segments = train_test_split(segments, test_size=0.2)
+                train_data[speaker] = train_segments
+                test_data[speaker] = test_segments
         
-        # Quantum weights (learnable parameters)
-        quantum_weights = np.random.randn(self.n_qubits)
-        
-        for segment in self.segments:
-            start_time_segment = time.time()  # Log start time for each segment
-            # Convert time to sample indices
-            start_sample = int(segment['start_time'] * sr)
-            end_sample = int(segment['end_time'] * sr)
-            
-            # Extract audio segment
-            segment_audio = y[start_sample:end_sample]
-            
-            # Extract MFCC features
-            print(f"Extracting MFCCs for segment {segment['speaker']} from {segment['start_time']} to {segment['end_time']}")
-            mfccs = librosa.feature.mfcc(y=segment_audio, sr=sr, n_mfcc=13)
-            
-            # Standardize features
-            scaler = StandardScaler()
-            mfccs_scaled = scaler.fit_transform(mfccs.T)
-            
-            print(f"Applying quantum feature mapping for segment {segment['speaker']}")
-            # Apply quantum feature mapping
-            quantum_features = []
-            for feature_vector in mfccs_scaled:
-                # Map first n_qubits features to quantum circuit
-                quantum_mapped = self.quantum_feature_map(
-                    feature_vector[:self.n_qubits], 
-                    quantum_weights
-                )
-                quantum_features.append(quantum_mapped)
-            
-            speaker_features[segment['speaker']].append(np.array(quantum_features))
-            
-            end_time_segment = time.time()  # Log end time for each segment
-            print(f"Processed segment {segment['speaker']} in {end_time_segment - start_time_segment:.2f} seconds")
-        
-        return speaker_features
+        return train_data, test_data
 
-    
-    def train_hmm_models(self, quantum_features):
-        """
-        Train HMM models using quantum-enhanced features
+    def train(self, audio_path, script_path):
+        self.parse_script(script_path)
         
-        Args:
-            quantum_features (dict): Quantum-enhanced features for each speaker
+        train_data, _ = self.train_test_split()
         
-        Returns:
-            dict: Trained HMM models
-        """
-        logging.info("Training HMM models for each speaker.")
-        hmm_models = {}
-        
-        for speaker, features_list in quantum_features.items():
-            # Concatenate all features for this speaker
-            speaker_features = np.concatenate(features_list)
+        for speaker, segments in train_data.items():
+            all_features = []
+            for start, end in segments:
+                mfcc = self.extract_mfcc(audio_path, start, end)
+                q_features = self.process_qcnn(mfcc)
+                all_features.append(q_features)
             
-            # Create and train HMM model
-            model = hmm.GaussianHMM(
-                n_components=4, 
-                covariance_type='diag', 
-                n_iter=100
-            )
-            model.fit(speaker_features)
-            hmm_models[speaker] = model
-        
-        logging.info("HMM model training completed.")
-        
-        # Save the trained HMM models
-        for speaker, model in hmm_models.items():
-            model_filename = os.path.join(self.model_dir, f"{speaker}.pkl")
-            joblib.dump(model, model_filename)
-            logging.info(f"Saved HMM model for {speaker} at {model_filename}")
-        
-        return hmm_models
+            features = np.vstack(all_features)
+            
+            model = hmm.GaussianHMM(n_components=self.n_hmm_components, 
+                                  covariance_type="diag", 
+                                  n_iter=100)
+            model.fit(features)
+            self.hmm_models[speaker] = model
+            print(f"Trained HMM model for {speaker}")
 
-    def save_quantum_weights(self, weights):
-        """
-        Save the quantum feature mapping weights
+    def predict(self, test_audio_path, start_time, end_time):
+        test_mfcc = self.extract_mfcc(test_audio_path, start_time, end_time)
+        test_features = self.process_qcnn(test_mfcc)
         
-        Args:
-            weights (np.ndarray): Quantum weights to be saved
-        """
-        weights_filename = os.path.join(self.model_dir, 'quantum_weights.npy')
-        np.save(weights_filename, weights)
-        logging.info(f"Saved quantum weights at {weights_filename}")
+        scores = {}
+        for speaker, model in self.hmm_models.items():
+            score = model.score(test_features)
+            scores[speaker] = score
+        
+        predicted_speaker = max(scores.items(), key=lambda x: x[1])[0]
+        return predicted_speaker, scores
     
-    def identify_speaker(self, hmm_models, test_features):
-        """
-        Identify speaker using trained HMM models
+    def evaluate(self, audio_path):
+        total = 0
+        correct = 0
+        y_true = []
+        y_pred = []
         
-        Args:
-            hmm_models (dict): Trained HMM models
-            test_features (numpy.ndarray): Quantum-enhanced test features
+        _, test_data = self.train_test_split()
         
-        Returns:
-            str: Identified speaker
-        """
-        logging.info("Identifying speaker using HMM models.")
-        # Compute log likelihood for each speaker's model
-        likelihoods = {}
-        for speaker, model in hmm_models.items():
-            try:
-                likelihoods[speaker] = model.score(test_features)
-            except:
-                likelihoods[speaker] = float('-inf')
+        print("\nTest Results:")
+        print("Segment\tTrue Speaker\tPredicted Speaker")
+        print("-" * 50)
         
-        # Return the speaker with the highest likelihood
-        return max(likelihoods, key=likelihoods.get)
+        for speaker, segments in test_data.items():
+            for start, end in segments:
+                predicted_speaker, _ = self.predict(audio_path, start, end)
+                print(f"{start}-{end}\t{speaker}\t{predicted_speaker}")
+                
+                y_true.append(speaker)
+                y_pred.append(predicted_speaker)
+                
+                if predicted_speaker == speaker:
+                    correct += 1
+                total += 1
+        
+        accuracy = correct / total if total > 0 else 0
+        print(f"\nEvaluation - Accuracy: {accuracy:.2%}")
+        
+        # Calculate precision, recall, and F1-score (macro-averaged)
+        precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, average='macro')
+        
+        print(f"Precision: {precision:.2f}")
+        print(f"Recall: {recall:.2f}")
+        print(f"F1-Score (Macro-Averaged): {f1:.2f}")
+        
+        return precision, recall, f1
+        
+def main():
+    si = SpeakerIdentification()
     
-    def run_speaker_identification(self):
-        """
-        Run the complete quantum-enhanced speaker identification pipeline
-        
-        Returns:
-            dict: Identification results
-        """
-        logging.info("Starting speaker identification pipeline.")
-        
-        # Parse script and extract segments
-        self.parse_script()
-        
-        # Extract quantum-enhanced features
-        quantum_features = self.extract_quantum_enhanced_features()
-        
-        # Train HMM models
-        hmm_models = self.train_hmm_models(quantum_features)
-        
-        # Perform testing
-        results = {}
-        for segment in self.segments:
-            # Load audio segment
-            y, sr = librosa.load(
-                self.wav_file, 
-                offset=segment['start_time'], 
-                duration=segment['end_time'] - segment['start_time']
-            )
-            
-            # Extract MFCC features
-            mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-            
-            # Standardize features
-            scaler = StandardScaler()
-            mfccs_scaled = scaler.fit_transform(mfccs.T)
-            
-            # Apply quantum feature mapping
-            quantum_weights = np.random.randn(self.n_qubits)
-            test_quantum_features = []
-            for feature_vector in mfccs_scaled:
-                quantum_mapped = self.quantum_feature_map(
-                    feature_vector[:self.n_qubits], 
-                    quantum_weights
-                )
-                test_quantum_features.append(quantum_mapped)
-            
-            # Convert to numpy array
-            test_quantum_features = np.array(test_quantum_features)
-            
-            # Identify speaker
-            predicted_speaker = self.identify_speaker(
-                hmm_models, 
-                test_quantum_features
-            )
-            
-            results[segment['speaker']] = {
-                'true_speaker': segment['speaker'],
-                'predicted_speaker': predicted_speaker,
-                'correct': predicted_speaker == segment['speaker']
-            }
-        
-        logging.info("Speaker identification completed.")
-        return results
+    audio_file = "meeting_1/raw.wav"
+    script_file = "meeting_1/script.txt"
+    si.train(audio_file, script_file)
+    
+    si.evaluate(audio_file)
 
-wav_path = os.path.join("..", "..", "train_data", "meeting_1", "raw.wav")
-script = os.path.join("..", "..", "train_data", "meeting_1", "script.txt")
-
-trainer = MFCC_QCNN_HMM(wav_path, script)
-result = trainer.run_speaker_identification()
-print(result)
+if __name__ == "__main__":
+    main()
