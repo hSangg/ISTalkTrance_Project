@@ -1,28 +1,24 @@
-import numpy as np
-import pandas as pd
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-import pennylane as qml
-from speechbrain.pretrained import SpeakerRecognition
+import os
+
+import hmmlearn.hmm as hmm
 import librosa
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import accuracy_score
-import torch.nn.functional as F
-import os
-from sklearn.metrics import precision_recall_fscore_support
-import hmmlearn.hmm as hmm
-import torch
+import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import pennylane as qml
 import seaborn as sns
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
 from sklearn.metrics import (
-    precision_score, recall_score, f1_score, accuracy_score, 
+    precision_score, recall_score, f1_score, accuracy_score,
     classification_report, confusion_matrix
 )
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from speechbrain.pretrained import SpeakerRecognition
+from torch.utils.data import Dataset, DataLoader
 
 np.random.seed(42)
 torch.manual_seed(42)
@@ -784,7 +780,7 @@ def load_models(filename='speaker_recognition_models.pth'):
     }
 
 if __name__ == "__main__":
-    audio_file = os.path.join("..", "..", "train_data", "meeting_1", "raw.wav")
+    audio_file = os.path.join("..", "..", "train_data", "meeting_1", "raw.WAV")
     script_file = os.path.join("..", "..", "train_data", "meeting_1", "script.txt")
         
     # Train the speaker recognition system

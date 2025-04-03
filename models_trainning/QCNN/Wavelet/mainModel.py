@@ -1,18 +1,18 @@
-import numpy as np
-import pandas as pd
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-import pennylane as qml
+import os
+
 import librosa
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import pennylane as qml
+import pywt
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import accuracy_score, confusion_matrix
-import torch.nn.functional as F
-import pywt
-import os
+from torch.utils.data import Dataset, DataLoader
 
 np.random.seed(42)
 torch.manual_seed(42)
@@ -597,7 +597,7 @@ def visualize_wavelet_coefficients(audio_file, wavelet_name=WAVELET_NAME, level=
     return coeffs
 
 if __name__ == "__main__":
-    audio_file = os.path.join("..", "..", "train_data", "meeting_1", "raw.wav")
+    audio_file = os.path.join("..", "..", "train_data", "meeting_1", "raw.WAV")
     script_file = os.path.join("..", "..", "train_data", "meeting_1", "script.txt")
         
     model, label_encoder = train_speaker_recognition_qcnn(audio_file, script_file)

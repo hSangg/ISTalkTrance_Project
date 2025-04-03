@@ -1,13 +1,12 @@
-import numpy as np
-import librosa
-import pennylane as qml
-from hmmlearn import hmm
-import os
-from scipy.io import wavfile
 import warnings
-from sklearn.model_selection import train_test_split
+
+import librosa
+import numpy as np
+import pennylane as qml
 import pywt
+from hmmlearn import hmm
 from sklearn.metrics import precision_recall_fscore_support
+from sklearn.model_selection import train_test_split
 
 warnings.filterwarnings('ignore')
 
@@ -186,7 +185,7 @@ class SpeakerIdentification:
 def main():
     si = SpeakerIdentification(n_wavelet_features=13, wavelet='db4', max_level=4)
     
-    audio_file = "gitlab_public_meeting/raw.wav"
+    audio_file = "gitlab_public_meeting/raw.WAV"
     script_file = "gitlab_public_meeting/script.txt"
     si.train(audio_file, script_file)
     
