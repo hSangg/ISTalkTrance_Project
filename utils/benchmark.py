@@ -1,13 +1,13 @@
-import numpy as np
-import os
-import librosa
-import soundfile as sf
 import io
+import os
 from collections import defaultdict
-from sklearn.metrics import precision_recall_fscore_support
-from typing import List, Tuple, Dict, Any
-from modules.authenticate import VoiceAuthenticator
+from typing import Tuple
 
+import librosa
+import numpy as np
+import soundfile as sf
+
+from modules.authenticate import VoiceAuthenticator
 
 authenticator = VoiceAuthenticator()
 
@@ -53,7 +53,7 @@ def test_directory(directory_path: str):
         if not os.path.isdir(folder_path):
             continue
 
-        wav_file = os.path.join(folder_path, 'raw.wav')
+        wav_file = os.path.join(folder_path, 'raw.WAV')
         script_file = os.path.join(folder_path, 'script.txt')
 
         if not os.path.exists(wav_file) or not os.path.exists(script_file):

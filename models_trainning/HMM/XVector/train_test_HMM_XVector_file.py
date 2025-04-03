@@ -1,10 +1,12 @@
-import numpy as np
-import torchaudio
-import joblib
-from speechbrain.inference.classifiers import EncoderClassifier
-from hmmlearn import hmm
 import os
+
+import joblib
+import numpy as np
 import torch
+import torchaudio
+from hmmlearn import hmm
+from speechbrain.inference.classifiers import EncoderClassifier
+
 
 def time_to_seconds(timestamp):
     h, m, s = map(int, timestamp.split(":"))
@@ -57,7 +59,7 @@ def predict_speaker(speaker, xvectors):
     return model.predict(np.vstack(xvectors))
 
 # ======= Chạy thử nghiệm =======
-audio_file = "train_voice/vnoi_talkshow/raw.wav"
+audio_file = "train_voice/vnoi_talkshow/raw.WAV"
 script_file = "train_voice/vnoi_talkshow/script.txt"
 
 # Load SpeechBrain XVector model

@@ -59,7 +59,7 @@ class Utils:
                     'end': end_time,
                     'label': label
                 })
-            audio_path = os.path.join('train_voice', 'user123', 'raw.wav')
+            audio_path = os.path.join('train_voice', 'user123', 'raw.WAV')
             print(f"Type of audio_path: {type(audio_path)}")
 
             output_dir = '20_percent_test'
