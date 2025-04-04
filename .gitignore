@@ -25,3 +25,5 @@ train/*
 /hmm_mfcc_models
 /rnn_mfcc_models
 /rnn_dvector_models
+/hmm_xvector_models
+/hmm_wavelet_models
