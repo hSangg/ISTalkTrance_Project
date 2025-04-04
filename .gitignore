@@ -27,3 +27,4 @@ train/*
 /rnn_dvector_models
 /hmm_xvector_models
 /hmm_wavelet_models
+/pretrained_models

@@ -7,7 +7,7 @@ import torchaudio
 from hmmlearn import hmm
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn.model_selection import train_test_split
-from speechbrain.pretrained import SpeakerRecognition
+from speechbrain.inference.classifiers import EncoderClassifier
 
 warnings.filterwarnings('ignore')
 
@@ -31,7 +31,7 @@ class SpeakerIdentification:
         self.weights = np.random.randn(n_qubits)
         
         # Load pretrained x-vector model
-        self.embedding_model = SpeakerRecognition.from_hparams(
+        self.embedding_model = EncoderClassifier.from_hparams(
             source="speechbrain/spkrec-xvect-voxceleb",
             savedir="pretrained_models/xvector"
         )
@@ -45,7 +45,7 @@ class SpeakerIdentification:
         
         # Extract x-vector embedding
         with torch.no_grad():
-            embeddings = self.embedding_model.encode_batch(segment)
+            embeddings = self.embedding_model.encode_batch(segment).squeeze(0)
         return embeddings.squeeze(0).numpy()
 
     def process_qcnn(self, xvector):
@@ -102,7 +102,7 @@ class SpeakerIdentification:
             features = np.vstack(all_features)
             
             model = hmm.GaussianHMM(
-                n_components=self.n_hmm_components, 
+                n_components=min(self.n_hmm_components, len(all_features)),
                 covariance_type="diag", 
                 n_iter=100
             )
