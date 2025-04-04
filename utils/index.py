@@ -1,7 +1,7 @@
-import pandas as pd
-import numpy as np
-from pydub import AudioSegment
 import os
+
+from pydub import AudioSegment
+
 
 def parse_timestamp(timestamp):
     minutes, seconds = map(float, timestamp.split(':'))
@@ -29,6 +29,6 @@ def split_wav_file(wav_path, script_path, output_dir='split_audio'):
     
     print(f'Splitting complete. Files saved in {output_dir}')
 
-wav_path = 'raw.wav'
+wav_path = 'raw.WAV'
 script_path = 'script.txt'
 split_wav_file(wav_path, script_path)

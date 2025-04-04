@@ -1,13 +1,14 @@
+import warnings
+
 import numpy as np
-import librosa
 import pennylane as qml
-from hmmlearn import hmm
 import torch
 import torchaudio
-from speechbrain.pretrained import SpeakerRecognition
-from sklearn.model_selection import train_test_split
+from hmmlearn import hmm
 from sklearn.metrics import precision_recall_fscore_support
-import warnings
+from sklearn.model_selection import train_test_split
+from speechbrain.pretrained import SpeakerRecognition
+
 warnings.filterwarnings('ignore')
 
 class SpeakerIdentification:
@@ -186,7 +187,7 @@ class SpeakerIdentification:
 def main():
     si = SpeakerIdentification()
     
-    audio_file = "meeting_1/raw.wav"
+    audio_file = "meeting_1/raw.WAV"
     script_file = "meeting_1/script.txt"
     si.train(audio_file, script_file)
     

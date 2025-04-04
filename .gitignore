@@ -22,5 +22,6 @@ train/*
 /.idea
 /rnn_wavelet_models
 /test_voice
-/models_trainning
-/rnn_xvector_models
+/hmm_mfcc_models
+/rnn_mfcc_models
+/rnn_dvector_models

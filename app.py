@@ -45,7 +45,7 @@ def deprecated_train():
         user_dir = os.path.join("train_voice", user_id)
         os.makedirs(user_dir, exist_ok=True)
 
-        audio_path = os.path.join(user_dir, "raw.wav")
+        audio_path = os.path.join(user_dir, "raw.WAV")
         script_path = os.path.join(user_dir, "script.txt")
         audio_file.save(audio_path)
         script_file.save(script_path)

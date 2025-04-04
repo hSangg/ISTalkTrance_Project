@@ -11,7 +11,7 @@ class Config:
     HMM_ITERATIONS = 100
     TRAIN_VOICE = "./train_voice"
     ALLOWED_EXTENSIONS = {'wav', 'txt'}
-    AUDIO_FILE = "raw.wav"
+    AUDIO_FILE = "raw.WAV"
     SCRIPT_FILE = "script.txt"
     
     @staticmethod

@@ -1,11 +1,9 @@
-import numpy as np
+import warnings
+
 import librosa
+import numpy as np
 import pennylane as qml
 from hmmlearn import hmm
-import os
-from scipy.io import wavfile
-import warnings
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import precision_recall_fscore_support
 import os
 import pickle

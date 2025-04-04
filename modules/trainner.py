@@ -41,7 +41,7 @@ class Trainner:
         for subfolder in subfolders:
             print("✨ start extract feature for sub-folder ✨ \t \t", subfolder)
             annotation_file = os.path.join(subfolder, "script.txt")
-            audio_file = os.path.join(subfolder, "raw.wav")
+            audio_file = os.path.join(subfolder, "raw.WAV")
 
             if not os.path.exists(annotation_file) or not os.path.exists(audio_file):
                 continue
@@ -124,7 +124,7 @@ class Trainner:
 
     def train_user_model(self, user_dir: str, n_splits: int = 5) -> Dict:
         try:
-            raw_audio = os.path.join(user_dir, 'raw.wav')
+            raw_audio = os.path.join(user_dir, 'raw.WAV')
             script_file = [f for f in os.listdir(user_dir) if f.endswith('.txt')][0]
             script_path = os.path.join(user_dir, script_file)
             segments = Utils.parse_timestamp_script(self, script_path)

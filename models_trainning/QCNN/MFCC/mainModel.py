@@ -1,23 +1,21 @@
-import numpy as np
-import pandas as pd
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-import pennylane as qml
+import os
+
 import librosa
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import pennylane as qml
+import seaborn as sns
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from sklearn.ensemble import AdaBoostClassifier
-from sklearn.metrics import accuracy_score
-import torch.nn.functional as F
-from sklearn.metrics import precision_score, recall_score, f1_score, f1_score, accuracy_score
-from sklearn.metrics import confusion_matrix
-import seaborn as sns
-import matplotlib.pyplot as plt
-from sklearn.metrics import classification_report
-import os
+from torch.utils.data import Dataset, DataLoader
 
 # Set random seeds for reproducibility
 np.random.seed(42)
@@ -691,7 +689,7 @@ def load_qcnn_ensemble(filename='qcnn_boosting_model.pth'):
     return boosting_model, label_encoder
 
 if __name__ == "__main__":
-    audio_file = os.path.join("..", "..", "train_data", "meeting_1", "raw.wav")
+    audio_file = os.path.join("..", "..", "train_data", "meeting_1", "raw.WAV")
     script_file = os.path.join("..", "..", "train_data", "meeting_1", "script.txt")
     
     # Train the model

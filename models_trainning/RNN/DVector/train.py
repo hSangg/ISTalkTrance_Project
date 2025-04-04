@@ -1,16 +1,16 @@
+import os
+
 import numpy as np
-import torchaudio
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torchaudio
 from speechbrain.inference.speaker import SpeakerRecognition
-import os
 
-# Load D-Vector model
 spk_model = SpeakerRecognition.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb",
                                             savedir="speechbrain_models/spkrec-ecapa-voxceleb")
 
-# RNN Model
+
 class SpeakerRNN(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, num_layers=2):
         super(SpeakerRNN, self).__init__()
@@ -19,7 +19,7 @@ class SpeakerRNN(nn.Module):
 
     def forward(self, x):
         out, _ = self.gru(x)
-        out = self.fc(out[:, -1, :])  # Lấy kết quả cuối cùng
+        out = self.fc(out[:, -1, :])
         return out
 
 def time_to_seconds(timestamp):
@@ -54,19 +54,17 @@ def extract_dvectors(audio_path, segments):
     return dvector_dict
 
 def train_rnn_for_speaker(speaker, dvectors, num_epochs=50):
-    dvectors = np.mean(dvectors, axis=1)  # Trung bình đặc trưng
+    dvectors = np.mean(dvectors, axis=1)
     input_dim = dvectors.shape[1]
     hidden_dim = 128
-    output_dim = 1  # 1 lớp đầu ra cho mỗi người nói
+    output_dim = 1
 
     model = SpeakerRNN(input_dim, hidden_dim, output_dim)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     x_train = torch.tensor(dvectors, dtype=torch.float32).unsqueeze(1)
-    print(f"x_train shape: {x_train.shape}")  # Kiểm tra định dạng trước khi đưa vào model
-
-    y_train = torch.ones((len(dvectors), 1), dtype=torch.float32)  # Dummy labels
+    y_train = torch.ones((len(dvectors), 1), dtype=torch.float32)
 
     for epoch in range(num_epochs):
         optimizer.zero_grad()
@@ -74,41 +72,34 @@ def train_rnn_for_speaker(speaker, dvectors, num_epochs=50):
         loss = criterion(outputs, y_train)
         loss.backward()
         optimizer.step()
-    
-    os.makedirs("models", exist_ok=True)
-    torch.save(model.state_dict(), f"models/{speaker}_rnn.pth")
-    print(f"✅ Đã lưu mô hình RNN cho {speaker}")
 
-def load_rnn_model(speaker, input_dim):
-    model_path = f"models/{speaker}_rnn.pth"
-    if not os.path.exists(model_path):
-        print(f"⚠️ Không tìm thấy mô hình cho {speaker}")
-        return None
-    
-    model = SpeakerRNN(input_dim, hidden_dim=128, output_dim=1)
-    model.load_state_dict(torch.load(model_path))
-    model.eval()
-    return model
+    os.makedirs("rnn_dvector_models", exist_ok=True)
 
-def predict_speaker(speaker, dvectors):
-    model = load_rnn_model(speaker, dvectors.shape[1])
-    if model is None:
-        return []
+    torch.save({
+        'input_dim': input_dim,
+        'model_state_dict': model.state_dict()
+    }, f"rnn_dvector_models/{speaker}.pth")
 
-    x_test = torch.tensor(np.array(dvectors), dtype=torch.float32).unsqueeze(1)
-    with torch.no_grad():
-        predictions = model(x_test).numpy()
-    
-    return predictions
+    print(f"✅ Đã lưu mô hình RNN cho {speaker}, input_dim = {input_dim}")
 
-# ======= Chạy thử nghiệm =======
-audio_file = "train_voice/vnoi_talkshow/raw.wav"
-script_file = "train_voice/vnoi_talkshow/script.txt"
+root_folder = "test_voice"
+speaker_dvectors = {}
 
-# Load script và trích xuất đặc trưng D-Vector
-segments, speakers = load_script(script_file)
-dvector_dict = extract_dvectors(audio_file, zip(segments, speakers))
+for subfolder in os.listdir(root_folder):
+    subfolder_path = os.path.join(root_folder, subfolder)
+    audio_path = os.path.join(subfolder_path, "raw.WAV")
+    script_path = os.path.join(subfolder_path, "script.txt")
 
-# Huấn luyện mô hình RNN
-for speaker, dvectors in dvector_dict.items():
-    train_rnn_for_speaker(speaker, dvectors)
+    if os.path.exists(audio_path) and os.path.exists(script_path):
+        segments, speakers = load_script(script_path)
+        dvector_dict = extract_dvectors(audio_path, zip(segments, speakers))
+
+        for speaker, dvectors in dvector_dict.items():
+            print("extract dvectors for speaker", speaker)
+            if speaker not in speaker_dvectors:
+                speaker_dvectors[speaker] = []
+            speaker_dvectors[speaker].extend(dvectors)
+
+for speaker, dvectors in speaker_dvectors.items():
+    print("train for: ", speaker)
+    train_rnn_for_speaker(speaker, np.array(dvectors))
