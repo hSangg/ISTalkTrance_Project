@@ -117,7 +117,8 @@ class SpeakerIdentification:
         print(f"Test feature shape before reshape: {test_features.shape}")
     
         expected_frames, expected_features = next(iter(self.hmm_models.values())).means_.shape
-        
+        if len(test_features.shape) == 1:
+            test_features = test_features.reshape(1, -1)
         if test_features.shape[1] != expected_features:
             print(f"⚠️ Feature dimension mismatch: {test_features.shape[1]} vs {expected_features}")
             return None, {}
