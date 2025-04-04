@@ -82,8 +82,10 @@ def train_rnn_for_speaker(speaker, dvectors, num_epochs=50):
 
     print(f"✅ Đã lưu mô hình RNN cho {speaker}, input_dim = {input_dim}")
 
-root_folder = "test_voice"
+root_folder = "train_voice"
 speaker_dvectors = {}
+
+print("start.........")
 
 for subfolder in os.listdir(root_folder):
     subfolder_path = os.path.join(root_folder, subfolder)
@@ -92,8 +94,8 @@ for subfolder in os.listdir(root_folder):
 
     if os.path.exists(audio_path) and os.path.exists(script_path):
         segments, speakers = load_script(script_path)
+        print("🏃‍♂️ at: ", subfolder_path)
         dvector_dict = extract_dvectors(audio_path, zip(segments, speakers))
-
         for speaker, dvectors in dvector_dict.items():
             print("extract dvectors for speaker", speaker)
             if speaker not in speaker_dvectors:

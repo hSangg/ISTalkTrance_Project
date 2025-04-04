@@ -31,7 +31,7 @@ class Trainner:
         self.hmm_iterations = hmm_iterations
         self.n_trials = n_trials
 
-        os.makedirs('models', exist_ok=True)
+        os.makedirs('hmm_wavelet_models', exist_ok=True)
 
     @staticmethod
     def train_hmm_model_all():
@@ -155,7 +155,7 @@ class Trainner:
                 )
                 final_model.fit(features)
                 
-                model_path = os.path.join('models', f'{label}_model.pkl')
+                model_path = os.path.join('hmm_wavelet_models', f'{label}_model.pkl')
                 joblib.dump(final_model, model_path)
                 
                 kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
