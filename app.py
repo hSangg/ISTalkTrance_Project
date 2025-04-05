@@ -130,7 +130,7 @@ def train():
     if AUDIO not in request.files or SCRIPT not in request.files:
         return jsonify({ERROR: NO_FILES_PROVIDED}), 400
 
-    user_dir = os.path.join(Config.TRAIN_VOICE, "") # create random folder name
+    user_dir = os.path.join(Config.TRAIN_VOICE, "")
     os.makedirs(user_dir, exist_ok=True)
 
     audio_file = request.files.get(AUDIO)
@@ -159,6 +159,75 @@ def train():
 
     return jsonify({MESSAGE: COMPLETED}), 200
 
+@app.route("/evaluation", methods=["POST"])
+def evaluation():
+    test_root = Config.TEST_VOICE
+    model_dir = Config.MODELS_DIR
+
+    for folder in os.listdir(test_root):
+        folder_path = os.path.join(test_root, folder)
+        if not os.path.isdir(folder_path):
+            continue
+
+        audio_path = next(
+            (os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith(".wav")), None)
+        script_path = next(
+            (os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith(".txt")), None)
+
+        if not audio_path or not script_path:
+            print(f"❌ Thiếu file .wav hoặc .txt trong: {folder_path}")
+            continue
+
+        print(f"🔍 Đang test: {folder_path}")
+
+        segments = []
+        with open(script_path, "r", encoding="utf-8") as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    start_time = Utils.parse_time(parts[0])
+                    end_time = Utils.parse_time(parts[1])
+                    segments.append((start_time, end_time))
+
+        y, sr = librosa.load(audio_path, sr=None)
+
+        predictions = []
+        for start, end in segments:
+            segment = y[int(start * sr): int(end * sr)]
+            mfcc = FeatureExtractor.extract_mfcc_from_segment(segment, sr)
+            if mfcc is None:
+                predictions.append(f"{Utils.format_time(start)} {Utils.format_time(end)} Unknown")
+                continue
+
+            best_speaker = None
+            best_score = float("-inf")
+
+            for model_file in os.listdir(model_dir):
+                if not model_file.endswith(".pkl"):
+                    continue
+                speaker = model_file.replace(".pkl", "")
+                model_path = os.path.join(model_dir, model_file)
+
+                with open(model_path, "rb") as f:
+                    model = pickle.load(f)
+
+                try:
+                    score = model.score(mfcc)
+                    if score > best_score:
+                        best_score = score
+                        best_speaker = speaker
+                except Exception as e:
+                    print(f"⚠️ Lỗi khi predict với model {speaker}: {e}")
+
+            predictions.append(f"{Utils.format_time(start)} {Utils.format_time(end)} {best_speaker or 'Unknown'}")
+
+        result_path = os.path.join(folder_path, "script_predicted.txt")
+        with open(result_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(predictions))
+
+        print(f"✅ Đã ghi kết quả vào {result_path}")
+
+    return jsonify({MESSAGE: COMPLETED}), 200
 @app.route("/predict", methods=["POST"])
 def predict():
     global start, end, best_speaker, best_score, mfcc

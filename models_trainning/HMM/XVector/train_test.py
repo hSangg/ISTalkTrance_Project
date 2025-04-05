@@ -8,7 +8,7 @@ from hmmlearn import hmm
 from speechbrain.inference.classifiers import EncoderClassifier
 
 TEST_ROOT = "test_voice"
-TRAIN_ROOT = "test_voice"
+TRAIN_ROOT = "train_voice"
 
 
 def time_to_seconds(timestamp):
@@ -35,19 +35,15 @@ def load_script(script_path):
 
 def process_embedding(embedding):
     """Process embedding to ensure consistent shape for HMM"""
-    # If it's a 3D tensor (batch, frames, features)
     if embedding.ndim == 3:
-        embedding = embedding.reshape(embedding.shape[0], -1)  # Flatten to 2D
+        embedding = embedding.reshape(embedding.shape[0], -1)
 
-    # If it's a 1D array, reshape to 2D with one sample
     elif embedding.ndim == 1:
         embedding = embedding.reshape(1, -1)
 
-    # If feature dimension is 1024, we need 512 for our hmm_wavelet_models
     if embedding.shape[1] == 1024:
-        # Option 1: Split into two samples of 512 features
         first_half = embedding[:, :512]
-        return first_half  # Just use the first half for simplicity
+        return first_half
 
     return embedding
 
@@ -64,7 +60,6 @@ def extract_xvectors(audio_path, segments, speakers, classifier):
         with torch.no_grad():
             embedding = classifier.encode_batch(segment_waveform).squeeze().numpy()
 
-        # Process the embedding to ensure consistent shape
         embedding = process_embedding(embedding)
 
         if speaker not in xvector_dict:
@@ -75,10 +70,8 @@ def extract_xvectors(audio_path, segments, speakers, classifier):
 
 
 def train_hmm_for_speaker(speaker, xvectors):
-    # Stack all embeddings (should all have same shape now)
     xvectors = np.vstack(xvectors)
 
-    # Print shape for debugging
     print(f"Training {speaker} model with data shape: {xvectors.shape}")
 
     model = hmm.GaussianHMM(n_components=3, covariance_type="diag", n_iter=100)
@@ -88,11 +81,10 @@ def train_hmm_for_speaker(speaker, xvectors):
     joblib.dump(model, f"hmm_xvector_models/{speaker}_model.pkl")
     print(f"✅ Saved HMM model for {speaker}")
 
-    # Save the feature dimension used for this model for reference
     with open(f"hmm_xvector_models/{speaker}_features.txt", "w") as f:
         f.write(str(xvectors.shape[1]))
 
-    return xvectors.shape[1]  # Return the feature dimension
+    return xvectors.shape[1]
 
 
 def train_all():
@@ -121,21 +113,17 @@ def train_all():
         else:
             print(f"⚠️ Skipping {subfolder} because raw.WAV or script.txt is missing")
 
-    # Save the feature dimension for use during prediction
     with open("hmm_xvector_models/feature_dim.txt", "w") as f:
         f.write(str(feature_dim))
 
 
 def predict_speakers():
-    # Load the x-vector extractor
     classifier = EncoderClassifier.from_hparams(source="speechbrain/spkrec-xvect-voxceleb", run_opts={"device": "cpu"})
 
-    # Load all HMM hmm_wavelet_models
     models = {}
     model_dir = "hmm_xvector_models"
 
-    # Try to get the feature dimension used during training
-    feature_dim = 512  # Default
+    feature_dim = 512
     try:
         with open(os.path.join(model_dir, "feature_dim.txt"), "r") as f:
             feature_dim = int(f.read().strip())
@@ -161,7 +149,6 @@ def predict_speakers():
         print("❌ No hmm_wavelet_models found. Please train hmm_wavelet_models first.")
         return
 
-    # Process test data
     test_root = TEST_ROOT
     if not os.path.exists(test_root):
         print(f"❌ Test directory '{test_root}' not found.")
@@ -179,13 +166,10 @@ def predict_speakers():
         if os.path.exists(audio_path) and os.path.exists(script_path):
             print(f"🔍 Processing folder: {subfolder}")
 
-            # Load the audio file
             waveform, sample_rate = torchaudio.load(audio_path)
 
-            # Load the script to get segments
             segments, _ = load_script(script_path)
 
-            # Predict speakers for each segment
             predictions = []
 
             for i, (start, end) in enumerate(segments):
@@ -193,18 +177,14 @@ def predict_speakers():
                 end_sample = int(end * sample_rate)
                 segment_waveform = waveform[:, start_sample:end_sample]
 
-                # Extract x-vector for this segment
                 with torch.no_grad():
                     embedding = classifier.encode_batch(segment_waveform).squeeze().numpy()
 
-                # Process the embedding to match training format
                 embedding = process_embedding(embedding)
 
-                # Debug information
                 print(
                     f"  Segment {i + 1}/{len(segments)}: {seconds_to_time(start)} - {seconds_to_time(end)}, embedding shape: {embedding.shape}")
 
-                # Predict speaker
                 max_score = float('-inf')
                 predicted_speaker = None
 
@@ -220,7 +200,6 @@ def predict_speakers():
                 predictions.append((seconds_to_time(start), seconds_to_time(end), predicted_speaker))
                 print(f"  Predicted: {predicted_speaker}")
 
-            # Write predictions to script_predicted.txt
             output_path = os.path.join(subfolder_path, "script_predicted.txt")
             with open(output_path, "w", encoding="utf-8") as f:
                 for start, end, speaker in predictions:
@@ -229,9 +208,6 @@ def predict_speakers():
             print(f"✅ Created {output_path}")
         else:
             print(f"⚠️ Skipping {subfolder} because raw.WAV or script.txt is missing")
-
-
-# Run both training and prediction
 if __name__ == "__main__":
     print("==== Step 1: Training hmm_wavelet_models ====")
     train_all()
