@@ -27,3 +27,6 @@ train/*
 /rnn_dvector_models
 /hmm_xvector_models
 /hmm_wavelet_models
+/hmm_dvector_models
+/temp_train
+/temp_test
