@@ -10,6 +10,9 @@ class FeatureExtractor:
     @staticmethod
     def extract_mfcc_from_audio_bytes(audio_bytes):
         try:
+
+            print("start extract mfcc features...")
+
             audio, sr = librosa.load(
                 io.BytesIO(audio_bytes), 
                 sr=Config.SAMPLE_RATE
@@ -24,7 +27,6 @@ class FeatureExtractor:
             mfcc_delta2 = librosa.feature.delta(mfcc_features, order=2)
             
             combined_mfcc = np.vstack([mfcc_features, mfcc_delta, mfcc_delta2])
-            
             return combined_mfcc.T
         except Exception:
             raise

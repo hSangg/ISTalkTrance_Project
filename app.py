@@ -3,6 +3,8 @@ import pickle
 import time
 
 import librosa
+import soundfile as sf
+import torch
 from flask import Flask, request, jsonify
 
 from modules.authenticate import VoiceAuthenticator
@@ -22,6 +24,7 @@ NO_FILES_PROVIDED = "No files provided"
 SCRIPT = "script"
 AUDIO = "audio"
 
+
 app = Flask(__name__)
 
 Config.setup()
@@ -29,7 +32,103 @@ from modules.trainner import Trainner
 
 authenticator = VoiceAuthenticator()
 batch_trainer = BatchTrainer()
+hf_token = os.getenv("HF_TOKEN")
 
+import wave
+from io import BytesIO
+from datetime import timedelta
+from pyannote.audio import Pipeline
+
+from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
+processor = Wav2Vec2Processor.from_pretrained("anuragshas/wav2vec2-large-xlsr-53-vietnamese", token="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")
+model = Wav2Vec2ForCTC.from_pretrained("anuragshas/wav2vec2-large-xlsr-53-vietnamese", token="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")
+
+@app.route("/diarization", methods=["POST"])
+def diarization():
+    if AUDIO not in request.files:
+        return jsonify({ERROR: NO_FILES_PROVIDED}), 400
+
+    audio_file = request.files[AUDIO]
+    audio_bytes = audio_file.read()
+
+    audio_io = BytesIO(audio_bytes)
+
+    with wave.open(BytesIO(audio_bytes), 'rb') as wav_file:
+        framerate = wav_file.getframerate()
+        channels = wav_file.getnchannels()
+        sampwidth = wav_file.getsampwidth()
+
+    full_audio_io = BytesIO(audio_bytes)
+    full_audio, sr = librosa.load(full_audio_io, sr=None, mono=True)
+
+    pipeline = Pipeline.from_pretrained(
+        "pyannote/speaker-diarization-3.1",
+        use_auth_token=hf_token)
+
+    print("prepare pipeline...")
+    diarization = pipeline(audio_io)
+
+    results = []
+
+    for turn, _, speaker in diarization.itertracks(yield_label=True):
+        start_time = str(timedelta(seconds=int(turn.start)))
+        end_time = str(timedelta(seconds=int(turn.end)))
+
+        if start_time == end_time:
+            continue
+
+        start_sample = int(turn.start * sr)
+        end_sample = int(turn.end * sr)
+
+        audio_segment = full_audio[start_sample:end_sample]
+
+        segment_wav = BytesIO()
+        sf.write(segment_wav, audio_segment, sr, format='WAV')
+        segment_wav.seek(0)
+
+        print(f"🏃‍♂️ start predict speaker from: {start_time} to: {end_time}")
+        # segment_wav_copy = BytesIO(segment_wav.getvalue())
+        predict_speaker = authenticator.authenticate(segment_wav.read())
+        #
+        # segment_wav.seek(0)
+        #
+        # segment_file = FileStorage(
+        #     stream=segment_wav,
+        #     filename=f"segment_{start_time}_{end_time}.wav",
+        #     content_type="audio/wav"
+        # )
+
+        # segment_path = Utils.store_WAV(segment_file)
+        segment_wav.seek(0)  # Reset pointer before reading
+        segment_data, sr = librosa.load(segment_wav, sr=None)
+
+        input_values = processor(segment_data, return_tensors="pt").input_values
+        with torch.no_grad():
+            logits = model(input_values).logits
+
+        predicted_ids = torch.argmax(logits, dim=-1)
+
+        # try:
+        # transcription = asr_model.transcribe_file(str(segment_path))
+        transcription = processor.decode(predicted_ids[0])
+
+        result_line = f"{start_time} {end_time} {predict_speaker} {transcription}"
+        print(result_line.strip())
+
+        results.append({
+            "start_time": start_time,
+            "end_time": end_time,
+            "speaker_data": predict_speaker["best_user"],
+            "transcription": transcription
+        })
+        # finally:
+        #     if os.path.exists(segment_path):
+        #         os.unlink(segment_path)
+
+    return jsonify({
+        "message": "Diarization completed successfully.",
+        "results": results
+    }), 200
 @app.route('/deprecated/train', methods=['POST'])
 def deprecated_train():
     try:
@@ -228,6 +327,7 @@ def evaluation():
         print(f"✅ Đã ghi kết quả vào {result_path}")
 
     return jsonify({MESSAGE: COMPLETED}), 200
+
 @app.route("/predict", methods=["POST"])
 def predict():
     global start, end, best_speaker, best_score, mfcc
@@ -248,7 +348,9 @@ def predict():
                 segments.append((start_time, end_time))
 
     y, sr = librosa.load(audio_path, sr=None)
+
     predictions = []
+
     for start, end in segments:
         segment = y[int (start * sr) : int(end * sr)]
         mfcc = FeatureExtractor.extract_mfcc_from_segment(segment, sr)

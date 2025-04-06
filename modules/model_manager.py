@@ -32,7 +32,7 @@ class ModelManager:
 
     def load_model(self, user_id):
         try:
-            model_path = os.path.join(Config.MODELS_DIR, f'{user_id}_model.pkl')
+            model_path = os.path.join(Config.MODELS_DIR, f'{user_id}.pkl')
             if os.path.exists(model_path):
                 self.models[user_id] = joblib.load(model_path)
                 return True
@@ -42,10 +42,11 @@ class ModelManager:
         
     def load_all_models(self):
         self.models = {}
+        print("os.path.exists(Config.MODELS_DIR): ", os.path.exists(Config.MODELS_DIR))
         if os.path.exists(Config.MODELS_DIR):
             for filename in os.listdir(Config.MODELS_DIR):
-                if filename.endswith('_model.pkl'):
-                    user_id = filename.replace('_model.pkl', '')
+                if filename.endswith('.pkl'):
+                    user_id = filename.replace('.pkl', '')
                     self.load_model(user_id)
 
     def cross_validate_model(self, model, features):
