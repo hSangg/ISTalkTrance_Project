@@ -1,6 +1,5 @@
 import os
 
-import hmmlearn.hmm as hmm
 import librosa
 import matplotlib.pyplot as plt
 import numpy as np
@@ -31,7 +30,6 @@ LEARNING_RATE = 0.001
 EPOCHS = 20
 SEGMENT_DURATION = 1.0
 SAMPLE_RATE = 16000
-NUM_BOOSTING_ESTIMATORS = 1
 
 # Initialize quantum device
 dev = qml.device("default.qubit", wires=N_QUBITS)
@@ -92,9 +90,9 @@ class QuantumNeuralNetwork(nn.Module):
     def forward(self, x):
         return self.qlayer(x)
 
-class QDVectorHybrid(nn.Module):
+class QDVectorModel(nn.Module):
     def __init__(self, n_qubits=N_QUBITS, n_layers=N_LAYERS, n_classes=2, dvector_dim=256):
-        super(QDVectorHybrid, self).__init__()
+        super(QDVectorModel, self).__init__()
         
         self.compressor = DVectorCompressor(input_dim=dvector_dim, output_dim=n_qubits)
         self.qnn = QuantumNeuralNetwork(n_qubits=n_qubits, n_layers=n_layers)
@@ -105,186 +103,6 @@ class QDVectorHybrid(nn.Module):
         x = self.qnn(x)
         x = self.post_processing(x)
         return x
-
-class BoostingQDVector:
-    def __init__(self, n_estimators=NUM_BOOSTING_ESTIMATORS, n_qubits=N_QUBITS, n_layers=N_LAYERS, n_classes=2, dvector_dim=256, learning_rate=LEARNING_RATE):
-        self.n_estimators = n_estimators
-        self.n_qubits = n_qubits
-        self.n_layers = n_layers
-        self.n_classes = n_classes
-        self.dvector_dim = dvector_dim
-        self.learning_rate = learning_rate
-        self.models = []
-        self.weights = np.ones(n_estimators) / n_estimators
-        
-    def fit(self, train_loader, test_loader, epochs=EPOCHS):
-        """Train multiple QDVector models and combine them using a boosting approach"""
-        
-        sample_weights = np.ones(len(train_loader.dataset)) / len(train_loader.dataset)
-        
-        for i in range(self.n_estimators):
-            print(f"\nTraining model {i+1}/{self.n_estimators}")
-            
-            sampler = torch.utils.data.WeightedRandomSampler(
-                weights=sample_weights,
-                num_samples=len(train_loader.dataset),
-                replacement=True
-            )
-            
-            weighted_train_loader = DataLoader(
-                train_loader.dataset,
-                batch_size=BATCH_SIZE,
-                sampler=sampler,
-                drop_last=True
-            )
-            
-            model = QDVectorHybrid(
-                n_qubits=self.n_qubits,
-                n_layers=self.n_layers,
-                n_classes=self.n_classes,
-                dvector_dim=self.dvector_dim
-            )
-            
-            criterion = nn.CrossEntropyLoss()
-            optimizer = optim.Adam(model.parameters(), lr=self.learning_rate)
-            
-            train_losses = []
-            test_accuracies = []
-            
-            for epoch in range(epochs):
-                model.train()
-                running_loss = 0.0
-                
-                for batch_features, batch_labels in weighted_train_loader:
-                    optimizer.zero_grad()
-                    
-                    outputs = model(batch_features)
-                    loss = criterion(outputs, batch_labels)
-                    
-                    loss.backward()
-                    optimizer.step()
-                    
-                    running_loss += loss.item()
-                
-                model.eval()
-                correct = 0
-                total = 0
-                
-                with torch.no_grad():
-                    for batch_features, batch_labels in test_loader:
-                        outputs = model(batch_features)
-                        _, predicted = torch.max(outputs.data, 1)
-                        total += batch_labels.size(0)
-                        correct += (predicted == batch_labels).sum().item()
-                
-                test_accuracy = 100 * correct / total
-                avg_loss = running_loss / len(weighted_train_loader)
-                train_losses.append(avg_loss)
-                test_accuracies.append(test_accuracy)
-                
-                print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%")
-            
-            self.models.append(model)
-            
-            # Update sample weights based on errors
-            model.eval()
-            all_preds = []
-            all_labels = []
-            dataset_indices = []
-            
-            idx = 0
-            with torch.no_grad():
-                for features, labels in train_loader:
-                    outputs = model(features)
-                    _, predicted = torch.max(outputs, 1)
-                    
-                    for j in range(len(labels)):
-                        all_preds.append(predicted[j].item())
-                        all_labels.append(labels[j].item())
-                        dataset_indices.append(idx)
-                        idx += 1
-            
-            errors = np.array(all_preds) != np.array(all_labels)
-            error_rate = np.mean(errors)
-            
-            # Avoid division by zero or log(0)
-            error_rate = max(min(error_rate, 0.999), 0.001)
-            
-            model_weight = 0.5 * np.log((1 - error_rate) / error_rate)
-            self.weights[i] = model_weight
-            
-            # Update sample weights
-            for j, idx in enumerate(dataset_indices):
-                if idx < len(sample_weights):
-                    if errors[j]:
-                        sample_weights[idx] *= np.exp(model_weight)
-                    else:
-                        sample_weights[idx] *= np.exp(-model_weight)
-            
-            # Normalize weights
-            if len(sample_weights) > 0:
-                sample_weights = sample_weights / np.sum(sample_weights)
-            
-            print(f"Model {i+1} error rate: {error_rate:.4f}, weight: {model_weight:.4f}")
-        
-        self.weights = self.weights / np.sum(self.weights)
-        print(f"Final model weights: {self.weights}")
-        
-        return self
-    
-    def predict(self, features):
-        """Make predictions using the ensemble of models"""
-        all_predictions = []
-        
-        for model in self.models:
-            model.eval()
-            with torch.no_grad():
-                outputs = model(features)
-                probabilities = F.softmax(outputs, dim=1)
-                all_predictions.append(probabilities)
-        
-        # Weighted ensemble prediction
-        ensemble_pred = torch.zeros_like(all_predictions[0])
-        for i, pred in enumerate(all_predictions):
-            ensemble_pred += self.weights[i] * pred
-        
-        _, predicted = torch.max(ensemble_pred, 1)
-        return predicted
-
-class HMMModel:
-    def __init__(self, n_components=3, n_features=N_QUBITS):
-        self.models = {}
-        self.n_components = n_components
-        self.n_features = n_features
-    
-    def fit(self, features_dict):
-        """Train HMM models for each speaker"""
-        for speaker, features in features_dict.items():
-            # Convert to numpy array if not already
-            features = np.array(features)
-            
-            # Initialize and train HMM model
-            hmm_model = hmm.GaussianHMM(
-                n_components=self.n_components,
-                covariance_type="diag",
-                n_iter=100,
-                random_state=42
-            )
-            
-            # Fit model
-            hmm_model.fit(features)
-            self.models[speaker] = hmm_model
-    
-    def predict(self, features):
-        """Predict speaker based on features"""
-        scores = {}
-        
-        for speaker, model in self.models.items():
-            score = model.score(features)
-            scores[speaker] = score
-        
-        # Return speaker with highest log likelihood
-        return max(scores.items(), key=lambda x: x[1])[0]
 
 class SpeakerDataset(Dataset):
     def __init__(self, features, labels):
@@ -297,36 +115,21 @@ class SpeakerDataset(Dataset):
     def __getitem__(self, idx):
         return self.features[idx], self.labels[idx]
 
-def evaluate_model(model, test_loader, label_encoder, is_boosting_model=False):
+def evaluate_model(model, test_loader, label_encoder):
     """
     Evaluate model performance with comprehensive metrics
-    
-    Args:
-        model: The model to evaluate (either standard PyTorch model or BoostingQDVector)
-        test_loader: DataLoader containing test data
-        label_encoder: LabelEncoder for converting between numeric and string labels
-        is_boosting_model: Boolean flag to indicate if model is a BoostingQDVector model
-    
-    Returns:
-        metrics_df: DataFrame containing performance metrics
-        report: Classification report string
     """
     all_preds = []
     all_labels = []
     
-    for features, labels in test_loader:
-        # Get model predictions based on model type
-        if is_boosting_model:
-            # For BoostingQDVector model
-            predictions = model.predict(features)
-        else:
-            # For standard PyTorch models with forward method
-            with torch.no_grad():
-                outputs = model(features)
-                _, predictions = torch.max(outputs.data, 1)
-        
-        all_preds.extend(predictions.cpu().numpy())
-        all_labels.extend(labels.cpu().numpy())
+    model.eval()
+    with torch.no_grad():
+        for features, labels in test_loader:
+            outputs = model(features)
+            _, predictions = torch.max(outputs.data, 1)
+            
+            all_preds.extend(predictions.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
     
     # Convert numeric labels back to original class names
     original_labels = label_encoder.inverse_transform(all_labels)
@@ -462,7 +265,7 @@ def extract_audio_segments(audio_file, script_file, segment_duration=SEGMENT_DUR
 
 def train_speaker_recognition_system(audio_file, script_file):
     """
-    Train the speaker recognition system using quantum neural network and HMM.
+    Train the speaker recognition system using quantum neural network.
     """
     print("Loading SpeechBrain pretrained speaker recognition model...")
     speechbrain_model = SpeakerRecognition.from_hparams(
@@ -508,97 +311,97 @@ def train_speaker_recognition_system(audio_file, script_file):
     # Get d-vector dimension
     dvector_dim = dvectors.shape[1]
     
-    # Train Quantum-Enhanced Boosting model
-    print(f"Initializing Boosting QDVector with {NUM_BOOSTING_ESTIMATORS} estimators...")
-    boosting_model = BoostingQDVector(
-        n_estimators=NUM_BOOSTING_ESTIMATORS,
+    # Initialize Quantum QCNN model
+    print(f"Initializing Quantum Speaker Recognition model...")
+    quantum_model = QDVectorModel(
         n_qubits=N_QUBITS,
         n_layers=N_LAYERS,
         n_classes=n_classes,
-        dvector_dim=dvector_dim,
-        learning_rate=LEARNING_RATE
+        dvector_dim=dvector_dim
     )
     
-    boosting_model.fit(train_loader, test_loader, epochs=EPOCHS)
+    # Setup training
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(quantum_model.parameters(), lr=LEARNING_RATE)
     
-    # Final evaluation on test set
-    print("\nFinal evaluation on test set:")
-    correct = 0
-    total = 0
+    train_losses = []
+    test_accuracies = []
     
-    all_preds = []
-    all_labels = []
-    
-    for features, labels in test_loader:
-        predictions = boosting_model.predict(features)
-        total += labels.size(0)
-        correct += (predictions == labels).sum().item()
+    # Training loop
+    print(f"Starting training for {EPOCHS} epochs...")
+    for epoch in range(EPOCHS):
+        quantum_model.train()
+        running_loss = 0.0
         
-        all_preds.extend(predictions.cpu().numpy())
-        all_labels.extend(labels.cpu().numpy())
-    
-    final_accuracy = 100 * correct / total
-    print(f"Ensemble test accuracy: {final_accuracy:.2f}%")
-    
-    # Confusion matrix
-    from sklearn.metrics import confusion_matrix
-    import seaborn as sns
-    
-    cm = confusion_matrix(all_labels, all_preds)
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                xticklabels=label_encoder.classes_,
-                yticklabels=label_encoder.classes_)
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title('Confusion Matrix')
-    plt.savefig('qdvector_confusion_matrix.png')
-    
-    # Train HMM for temporal modeling
-    print("\nTraining HMM models for temporal sequence modeling...")
-    
-    # Extract compressed features for HMM
-    speaker_features = {speaker: [] for speaker in label_encoder.classes_}
-    
-    # Process train set to get features per speaker
-    for i, model in enumerate(boosting_model.models):
-        model.eval()
+        for batch_features, batch_labels in train_loader:
+            optimizer.zero_grad()
+            
+            outputs = quantum_model(batch_features)
+            loss = criterion(outputs, batch_labels)
+            
+            loss.backward()
+            optimizer.step()
+            
+            running_loss += loss.item()
+        
+        # Evaluation
+        quantum_model.eval()
+        correct = 0
+        total = 0
+        
         with torch.no_grad():
-            for features, labels in train_loader:
-                # Get compressed features before quantum processing
-                compressed = model.compressor(features)
-                
-                # Group by speaker
-                for j, label in enumerate(labels):
-                    speaker = label_encoder.classes_[label.item()]
-                    speaker_features[speaker].append(compressed[j].cpu().numpy())
+            for batch_features, batch_labels in test_loader:
+                outputs = quantum_model(batch_features)
+                _, predicted = torch.max(outputs.data, 1)
+                total += batch_labels.size(0)
+                correct += (predicted == batch_labels).sum().item()
+        
+        test_accuracy = 100 * correct / total
+        avg_loss = running_loss / len(train_loader)
+        train_losses.append(avg_loss)
+        test_accuracies.append(test_accuracy)
+        
+        print(f"Epoch {epoch + 1}/{EPOCHS}, Loss: {avg_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%")
     
-    # Train HMM models
-    hmm_model = HMMModel(n_components=3, n_features=N_QUBITS)
-    hmm_model.fit(speaker_features)
+    # Plot training progress
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(range(1, EPOCHS + 1), train_losses)
+    plt.title('Training Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
     
-    print("Speaker recognition system training complete!")
+    plt.subplot(1, 2, 2)
+    plt.plot(range(1, EPOCHS + 1), test_accuracies)
+    plt.title('Test Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy (%)')
+    
+    plt.tight_layout()
+    plt.savefig('training_progress.png')
+    plt.close()
+    
+    # Final evaluation
     print("\nFinal evaluation on test set:")
-    metrics_df, report = evaluate_model(boosting_model, test_loader, label_encoder, is_boosting_model=True)
+    metrics_df, report = evaluate_model(quantum_model, test_loader, label_encoder)
     
     # Save metrics to CSV
     metrics_df.to_csv('speaker_recognition_metrics.csv', index=False)
     print("\nMetrics saved to speaker_recognition_metrics.csv")
     
+    # Return models
     return {
-        'quantum_model': boosting_model,
-        'hmm_model': hmm_model,
+        'quantum_model': quantum_model,
         'speechbrain_model': speechbrain_model,
         'label_encoder': label_encoder
     }
 
 def predict_speaker(models, audio_file, segment_duration=1.0):
     """
-    Predict speaker for each segment in an audio file using the hybrid system.
+    Predict speaker for each segment in an audio file using the quantum model.
     """
     # Unpack models
     quantum_model = models['quantum_model']
-    hmm_model = models['hmm_model']
     speechbrain_model = models['speechbrain_model']
     label_encoder = models['label_encoder']
     
@@ -635,92 +438,38 @@ def predict_speaker(models, audio_file, segment_duration=1.0):
     dvectors = extract_dvectors(audio_segments, speechbrain_model)
     
     # Make quantum model predictions
+    quantum_model.eval()
     predictions = []
-    quantum_features = []
     
     for dvector in dvectors:
         dvector_tensor = torch.tensor(dvector, dtype=torch.float32).unsqueeze(0)
         
-        # Get best model from ensemble
-        best_model_idx = np.argmax(quantum_model.weights)
-        best_model = quantum_model.models[best_model_idx]
-        
-        # Get compressed features for HMM
         with torch.no_grad():
-            compressed = best_model.compressor(dvector_tensor)
-            quantum_features.append(compressed.squeeze().cpu().numpy())
-            
-            # Get quantum model prediction
-            outputs = best_model(dvector_tensor)
+            outputs = quantum_model(dvector_tensor)
             _, predicted = torch.max(outputs.data, 1)
             predicted_label = label_encoder.inverse_transform([predicted.item()])[0]
             predictions.append(predicted_label)
-    
-    # Refine predictions using HMM for temporal coherence
-    quantum_features = np.array(quantum_features)
-    
-    # Apply a sliding window for HMM prediction
-    window_size = 5
-    refined_predictions = []
-    
-    for i in range(len(quantum_features)):
-        if i < window_size // 2 or i >= len(quantum_features) - window_size // 2:
-            # Keep quantum prediction at boundaries
-            refined_predictions.append(predictions[i])
-        else:
-            # Use HMM in the middle with context
-            window = quantum_features[i - window_size // 2:i + window_size // 2 + 1]
-            hmm_prediction = hmm_model.predict(window)
-            refined_predictions.append(hmm_prediction)
     
     # Create results dataframe
     results = pd.DataFrame({
         'Start Time': [f"{int(s[0] // 60):02d}:{int(s[0] % 60):02d}" for s in segments],
         'End Time': [f"{int(s[1] // 60):02d}:{int(s[1] % 60):02d}" for s in segments],
-        'Quantum Model': predictions,
-        'HMM Refined': refined_predictions
+        'Speaker': predictions
     })
     
     return results
 
-def save_models(models, filename='speaker_recognition_models.pth'):
-    """Save the trained models to disk"""
-    model_data = {
-        'quantum_model': {
-            'n_estimators': models['quantum_model'].n_estimators,
-            'n_qubits': models['quantum_model'].n_qubits,
-            'n_layers': models['quantum_model'].n_layers,
-            'n_classes': models['quantum_model'].n_classes,
-            'dvector_dim': models['quantum_model'].dvector_dim,
-            'weights': models['quantum_model'].weights,
-        },
-        'label_encoder_classes': models['label_encoder'].classes_,
-    }
+def save_model(models, filename='quantum_speaker_recognition_model.pth'):
+    """Save the trained model to disk"""
+    torch.save({
+        'quantum_model_state': models['quantum_model'].state_dict(),
+        'label_encoder_classes': models['label_encoder'].classes_
+    }, filename)
     
-    # Save quantum model states
-    model_states = []
-    for i, qdvector_model in enumerate(models['quantum_model'].models):
-        model_states.append(qdvector_model.state_dict())
-    
-    model_data['quantum_model_states'] = model_states
-    
-    # Save HMM models
-    hmm_models = {}
-    for speaker, model in models['hmm_model'].models.items():
-        hmm_models[speaker] = {
-            'means': model.means_,
-            'covars': model.covars_,
-            'transmat': model.transmat_,
-            'startprob': model.startprob_
-        }
-    
-    model_data['hmm_models'] = hmm_models
-    
-    torch.save(model_data, filename)
-    print(f"Models saved to {filename}")
+    print(f"Model saved to {filename}")
 
-def load_models(filename='speaker_recognition_models.pth'):
-    """Load the trained models from disk"""
+def load_model(filename='quantum_speaker_recognition_model.pth'):
+    """Load the trained model from disk"""
     model_data = torch.load(filename)
     
     # Recreate label encoder
@@ -734,59 +483,33 @@ def load_models(filename='speaker_recognition_models.pth'):
     )
     
     # Recreate quantum model
-    boosting_model = BoostingQDVector(
-        n_estimators=model_data['quantum_model']['n_estimators'],
-        n_qubits=model_data['quantum_model']['n_qubits'],
-        n_layers=model_data['quantum_model']['n_layers'],
-        n_classes=model_data['quantum_model']['n_classes'],
-        dvector_dim=model_data['quantum_model']['dvector_dim']
+    quantum_model = QDVectorModel(
+        n_qubits=N_QUBITS,
+        n_layers=N_LAYERS,
+        n_classes=len(label_encoder.classes_)
     )
     
-    boosting_model.weights = model_data['quantum_model']['weights']
+    quantum_model.load_state_dict(model_data['quantum_model_state'])
     
-    for i, state_dict in enumerate(model_data['quantum_model_states']):
-        if i < len(boosting_model.models):
-            qdvector_model = QDVectorHybrid(
-                n_qubits=model_data['quantum_model']['n_qubits'],
-                n_layers=model_data['quantum_model']['n_layers'],
-                n_classes=model_data['quantum_model']['n_classes'],
-                dvector_dim=model_data['quantum_model']['dvector_dim']
-            )
-            qdvector_model.load_state_dict(state_dict)
-            boosting_model.models[i] = qdvector_model
-    
-    # Recreate HMM models
-    hmm_model = HMMModel(n_features=model_data['quantum_model']['n_qubits'])
-    hmm_model.models = {}
-    
-    for speaker, model_params in model_data['hmm_models'].items():
-        model = hmm.GaussianHMM(
-            n_components=model_params['means'].shape[0], 
-            covariance_type="diag"
-        )
-        model.means_ = model_params['means']
-        model.covars_ = model_params['covars']
-        model.transmat_ = model_params['transmat']
-        model.startprob_ = model_params['startprob']
-        hmm_model.models[speaker] = model
-    
-    print(f"Models loaded from {filename}")
+    print(f"Model loaded from {filename}")
     
     return {
-        'quantum_model': boosting_model,
-        'hmm_model': hmm_model,
+        'quantum_model': quantum_model,
         'speechbrain_model': speechbrain_model,
         'label_encoder': label_encoder
     }
 
 if __name__ == "__main__":
-    audio_file = os.path.join("..", "..", "train_data", "meeting_1", "raw.WAV")
-    script_file = os.path.join("..", "..", "train_data", "meeting_1", "script.txt")
+    audio_file = "train_data/gitlab_public_meeting/raw.wav"
+    script_file = "train_data/gitlab_public_meeting/script.txt"
         
     # Train the speaker recognition system
     models = train_speaker_recognition_system(audio_file, script_file)
     
-    # Save the trained models
-    save_models(models, 'speaker_recognition_models.pth')
-
+    # Save the trained model
+    save_model(models, 'quantum_speaker_recognition_model.pth')
     
+    # Test prediction on the same file
+    results = predict_speaker(models, audio_file)
+    results.to_csv('speaker_predictions.csv', index=False)
+    print("\nPrediction results saved to speaker_predictions.csv")
