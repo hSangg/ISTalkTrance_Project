@@ -141,6 +141,7 @@ class ModelManager:
 
     @staticmethod
     def train_hmm_model(speaker, data):
+        os.makedirs(Config.MODELS_DIR, exist_ok=True)
         model_path = f"{Config.MODELS_DIR}/{speaker}.pkl"
 
         if os.path.exists(model_path):

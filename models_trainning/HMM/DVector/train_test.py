@@ -1,4 +1,5 @@
 import os
+import traceback
 
 import joblib
 import numpy as np
@@ -49,8 +50,8 @@ def train_hmm_for_speaker(speaker, dvectors):
             return
         model = hmm.GaussianHMM(n_components=3, covariance_type="diag", n_iter=100)
         model.fit(dvectors)
-        os.makedirs("hmm_wavelet_models", exist_ok=True)
-        joblib.dump(model, f"hmm_wavelet_models/{speaker}_dvector_model.pkl")
+        os.makedirs("hmm_dvector_models", exist_ok=True)
+        joblib.dump(model, f"hmm_dvector_models/{speaker}_model.pkl")
     except Exception as e:
         print(f"Failed to train HMM for {speaker}: {e}")
 def train_all_from_folder(train_root="train_voice"):
@@ -61,7 +62,6 @@ def train_all_from_folder(train_root="train_voice"):
         if not os.path.isdir(folder_path):
             continue
 
-        # Tìm file .wav và .txt trong folder
         audio_path = next((os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith('.wav')), None)
         script_path = next((os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith('.txt')), None)
 
@@ -78,24 +78,39 @@ def train_all_from_folder(train_root="train_voice"):
                 all_dvectors[speaker] = []
             all_dvectors[speaker].extend(vecs)
 
-    # Huấn luyện HMM sau khi gom đủ dữ liệu
     for speaker, dvectors in all_dvectors.items():
         print("🏃‍ train for : ️", speaker)
         train_hmm_for_speaker(speaker, dvectors)
 
 
 def predict_speaker_for_segment(dvector):
+    print(f"Original dvector shape: {dvector.shape}")
+
+    if len(dvector.shape) == 2 and dvector.shape[1] == 192:
+        dvector = dvector.flatten()[:192]
+    elif len(dvector.shape) == 1 and dvector.shape[0] > 192:
+        dvector = dvector[:192]
+
+    reshaped_dvector = dvector.reshape(1, -1)
+
     scores = {}
-    for model_file in os.listdir("hmm_wavelet_models"):
-        speaker_name = model_file.split("_dvector_model.pkl")[0]
-        model = joblib.load(os.path.join("hmm_wavelet_models", model_file))
+    for model_file in os.listdir("hmm_dvector_models"):
+        speaker_name = model_file.split("_model.pkl")[0]
+        model_path = os.path.join("hmm_dvector_models", model_file)
+
         try:
-            log_likelihood = model.score(dvector.reshape(1, -1))
+            model = joblib.load(model_path)
+            print(f"Model for {speaker_name} expects: {model.means_.shape}, Using vector: {reshaped_dvector.shape}")
+
+            log_likelihood = model.score(reshaped_dvector)
             scores[speaker_name] = log_likelihood
-        except:
-            continue
+        except Exception as e:
+            print(f"⚠️ Error scoring model for speaker '{speaker_name}': {e}")
+            traceback.print_exc()
+
     if not scores:
         return "unknown"
+
     return max(scores, key=scores.get)
 
 def predict_test_folder(test_folder="test_voice"):
@@ -103,11 +118,13 @@ def predict_test_folder(test_folder="test_voice"):
         folder_path = os.path.join(test_folder, folder)
         if not os.path.isdir(folder_path):
             continue
-        audio_path = os.path.join(folder_path, "audio.wav")
+        audio_path = os.path.join(folder_path, "raw.WAV")
         script_path = os.path.join(folder_path, "script.txt")
         output_path = os.path.join(folder_path, "script_predicted.txt")
         if not os.path.exists(audio_path) or not os.path.exists(script_path):
             continue
+
+        print("🏃‍♂️ process at: ", script_path)
         segments = []
         with open(script_path, "r", encoding="utf-8") as file:
             for line in file:
@@ -128,5 +145,4 @@ def predict_test_folder(test_folder="test_voice"):
                             f"{end//3600:02}:{(end%3600)//60:02}:{end%60:02} {speaker}\n")
 
 if __name__ == "__main__":
-    train_all_from_folder("train_voice")
     predict_test_folder("test_voice")

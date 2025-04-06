@@ -3,13 +3,14 @@ import os
 
 
 class Config:
-    MODELS_DIR = './models'
+    MODELS_DIR = './hmm_mfcc_models'
     LOGGING_LEVEL = logging.INFO
     SAMPLE_RATE = 16000
     N_MFCC = 13
     HMM_COMPONENTS = 5
     HMM_ITERATIONS = 100
     TRAIN_VOICE = "./train_voice"
+    TEST_VOICE = "./test_voice"
     ALLOWED_EXTENSIONS = {'wav', 'txt'}
     AUDIO_FILE = "raw.WAV"
     SCRIPT_FILE = "script.txt"
