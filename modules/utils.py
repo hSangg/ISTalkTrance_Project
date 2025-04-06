@@ -25,6 +25,16 @@ class Utils:
         return audio_path, script_path
 
     @staticmethod
+    def store_WAV(audio_file):
+        dataset_path = os.path.join(Config.TEMP_WAV, Utils.generate_random_string(LENGTH))
+        os.makedirs(dataset_path, exist_ok=True)
+
+        audio_path = os.path.join(dataset_path, Config.AUDIO_FILE)
+        audio_file.save(audio_path)
+
+        return audio_path
+
+    @staticmethod
     def save_model(model, model_path):
         with open(model_path, "wb") as f:
             pickle.dump(model, f)

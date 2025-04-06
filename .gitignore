@@ -30,3 +30,4 @@ train/*
 /hmm_dvector_models
 /temp_train
 /temp_test
+/pretrained_models

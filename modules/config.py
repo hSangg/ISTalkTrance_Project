@@ -3,7 +3,7 @@ import os
 
 
 class Config:
-    MODELS_DIR = './hmm_mfcc_models'
+    MODELS_DIR = 'hmm_mfcc_models'
     LOGGING_LEVEL = logging.INFO
     SAMPLE_RATE = 16000
     N_MFCC = 13
@@ -14,6 +14,7 @@ class Config:
     ALLOWED_EXTENSIONS = {'wav', 'txt'}
     AUDIO_FILE = "raw.WAV"
     SCRIPT_FILE = "script.txt"
+    TEMP_WAV = "./temp_wav"
     
     @staticmethod
     def setup():

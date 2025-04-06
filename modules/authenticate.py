@@ -44,9 +44,12 @@ class VoiceAuthenticator:
     def authenticate(self, audio_bytes):
         try:
             features = self.feature_extractor.extract_mfcc_from_audio_bytes(audio_bytes)
-            
+            print("features: ", features)
+            print("models: ", self.model_manager.models.items())
             scores = {}
             for user_id, model in self.model_manager.models.items():
+                print("user_id: ", user_id, " model: ", model)
+
                 score = model.score(features)
                 scores[user_id] = float(score)
             
