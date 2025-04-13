@@ -4,6 +4,7 @@ import joblib
 import numpy as np
 import optuna
 from hmmlearn import hmm
+from sklearn.metrics import classification_report
 from sklearn.model_selection import KFold
 
 from modules.config import Config
@@ -133,12 +134,81 @@ class ModelManager:
                 "success": False,
                 "error": str(e)
             }
+    @staticmethod
+    def predict_segment(segment, models):
+        """
+        Predict the speaker for a given feature segment using the trained HMM models.
+
+        :param segment: The feature segment (e.g., MFCC) to be classified.
+        :param models: A dictionary of trained HMM models for each speaker.
+
+        :return: The predicted speaker label.
+        """
+        best_score = float("-inf")
+        best_speaker = None
+
+        for speaker, (model, _, _) in models.items():
+            try:
+                # Score the segment with the current model
+                score = model.score(segment)
+                if score > best_score:
+                    best_score = score
+                    best_speaker = speaker
+            except Exception as e:
+                print(f"❌ Error scoring segment for speaker {speaker}: {e}")
+
+        return best_speaker
 
     def get_model(self, user_id):
         return self.models.get(user_id)
 
     def list_models(self):
         return list(self.models.keys())
+
+    def cross_validate_hmm_model(speaker_data, n_splits=5):
+        scores = {}
+
+        for speaker, data in speaker_data.items():
+            print(f"\n🔁 Cross-validating for speaker: {speaker}")
+            folds = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+            mfcc_data = data
+
+            X_all = np.array(mfcc_data, dtype=object)
+            fold_scores = []
+
+            # Iterate over folds for cross-validation
+            for fold_idx, (train_idx, test_idx) in enumerate(folds.split(X_all)):
+                X_train = [X_all[i] for i in train_idx]
+                X_test = [X_all[i] for i in test_idx]
+
+                # Train HMM model
+                model = hmm.GaussianHMM(n_components=5, covariance_type="diag", n_iter=Config.HMM_ITERATIONS)
+                train_concat = np.vstack(X_train)
+                train_lengths = [len(x) for x in X_train]
+                model.fit(train_concat, train_lengths)
+
+                # Evaluate on test set
+                test_concat = np.vstack(X_test)
+                try:
+                    y_true = [label for _, label in [X_all[i] for i in test_idx]]
+                    y_pred = [ModelManager.predict_segment(feat, model) for feat, _ in [X_all[i] for i in test_idx]]
+
+                    # Print Classification Report
+                    print(f"📊 Fold {fold_idx + 1} Classification Report:")
+                    print(classification_report(y_true, y_pred, zero_division=0))
+
+                    fold_scores.append(classification_report(y_true, y_pred, output_dict=True))
+
+                except Exception as e:
+                    print(f"❌ Error scoring fold {fold_idx + 1}: {e}")
+
+            # Store scores and print average score for each speaker
+            scores[speaker] = fold_scores
+            avg_score = np.mean([score['accuracy'] for score in fold_scores]) if fold_scores else float("-inf")
+            print(f"\n📊 Average accuracy for {speaker}: {avg_score:.2f}")
+
+        return scores
+
 
     @staticmethod
     def train_hmm_model(speaker, data):
