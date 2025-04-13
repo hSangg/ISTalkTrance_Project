@@ -32,7 +32,7 @@ batch_trainer = BatchTrainer()
 hf_token = os.getenv("HF_TOKEN")
 hf_token_full_access = os.getenv("HF_TOKEN_FULL_ACCESS")
 
-from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor, AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import (Wav2Vec2ForCTC, Wav2Vec2Processor, AutoModelForSeq2SeqLM, AutoTokenizer)
 processor = Wav2Vec2Processor.from_pretrained("anuragshas/wav2vec2-large-xlsr-53-vietnamese", token=hf_token_full_access)
 model = Wav2Vec2ForCTC.from_pretrained("anuragshas/wav2vec2-large-xlsr-53-vietnamese", token=hf_token_full_access)
 
@@ -42,7 +42,6 @@ summary_model = AutoModelForSeq2SeqLM.from_pretrained("VietAI/vit5-base", token=
 from transformers import pipeline
 transcriber = pipeline("automatic-speech-recognition", model="vinai/PhoWhisper-small", token=hf_token_full_access)
 
-# from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 # model_path = "vinai/PhoGPT-4B-Chat"
 # config = AutoConfig.from_pretrained(model_path, trust_remote_code=True, token="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")
 # phoModel = AutoModelForCausalLM.from_pretrained(model_path, config=config, torch_dtype=torch.bfloat16, trust_remote_code=True, token="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")

@@ -9,7 +9,7 @@ from sklearn.model_selection import StratifiedKFold
 
 WAVELET = "db4"
 LEVEL = 1
-N_SPLITS = 5
+N_SPLITS = 3
 
 
 def time_to_seconds(timestamp):
@@ -81,11 +81,17 @@ def train_hmm(features):
 def predict_segment(feature, models):
     scores = {}
     for speaker, (model, mean, std) in models.items():
-        norm_feat = (feature - mean) / std
-        score = model.score([norm_feat])
-        scores[speaker] = score
-    return max(scores, key=scores.get)
+        try:
+            norm_feat = (feature - mean) / std
+            score = model.score([norm_feat])
+            scores[speaker] = score
+        except ValueError as e:
+            continue
 
+    if not scores:
+        return None  # fallback nếu không có mô hình nào hợp lệ
+
+    return max(scores, key=scores.get)
 
 def cross_validate(features_with_labels, n_splits=N_SPLITS):
     X = np.array([feat for feat, label in features_with_labels])

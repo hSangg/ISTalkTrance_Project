@@ -10,7 +10,6 @@ from sklearn.metrics import classification_report, accuracy_score
 from sklearn.model_selection import KFold
 from speechbrain.inference.classifiers import EncoderClassifier
 
-TEST_ROOT = "test_voice"
 TRAIN_ROOT = "train_voice"
 
 def cross_validate(k_folds=5):
