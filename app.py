@@ -39,13 +39,16 @@ from io import BytesIO
 from datetime import timedelta
 from pyannote.audio import Pipeline
 
-from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
+from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor, AutoTokenizer, AutoModelForSeq2SeqLM
 processor = Wav2Vec2Processor.from_pretrained("anuragshas/wav2vec2-large-xlsr-53-vietnamese", token=hf_token_full_access)
 model = Wav2Vec2ForCTC.from_pretrained("anuragshas/wav2vec2-large-xlsr-53-vietnamese", token=hf_token_full_access)
 
+summary_tokenizer = AutoTokenizer.from_pretrained("VietAI/vit5-base", token=hf_token_full_access)
+summary_model = AutoModelForSeq2SeqLM.from_pretrained("VietAI/vit5-base", token=hf_token_full_access)
 
 from transformers import pipeline
 transcriber = pipeline("automatic-speech-recognition", model="vinai/PhoWhisper-small", token=hf_token_full_access)
+
 @app.route("/diarization", methods=["POST"])
 def diarization():
     if AUDIO not in request.files:
@@ -90,11 +93,8 @@ def diarization():
         segment_wav.seek(0)
 
         print(f"🏃‍♂️ start predict speaker from: {start_time} to: {end_time}")
-        # segment_wav_copy = BytesIO(segment_wav.getvalue())
         predict_speaker = authenticator.authenticate(segment_wav.read())
-        #
         segment_wav.seek(0)
-        #
         segment_file = FileStorage(
             stream=segment_wav,
             filename=f"segment_{start_time}_{end_time}.wav",
@@ -102,19 +102,9 @@ def diarization():
         )
 
         segment_path = Utils.store_WAV(segment_file)
-        # segment_wav.seek(0)  # Reset pointer before reading
-        # segment_data, sr = librosa.load(segment_wav, sr=None)
-        #
-        # input_values = processor(segment_data, return_tensors="pt").input_values
-        # with torch.no_grad():
-        #     logits = model(input_values).logits
-        #
-        # predicted_ids = torch.argmax(logits, dim=-1)
 
         try:
-            # transcription = asr_model.transcribe_file(str(segment_path))
             transcription = transcriber(segment_path)['text']
-        # transcription = processor.decode(predicted_ids[0])
 
             result_line = f"{start_time} {end_time} {predict_speaker} {transcription}"
             print(result_line.strip())
@@ -129,9 +119,30 @@ def diarization():
             if os.path.exists(segment_path):
                 os.unlink(segment_path)
 
+        dialogue_text = "\n".join(
+            f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in results
+        )
+
+        input_text = f"tóm tắt: {dialogue_text}"
+
+        input_ids = summary_tokenizer(
+            input_text,
+            return_tensors="pt",
+            max_length=512,
+            truncation=True
+        ).input_ids
+
+        output_ids = summary_model.generate(
+            input_ids,
+            max_length=150,
+            num_beams=4,
+            early_stopping=True
+        )
+
+        summary = summary_tokenizer.decode(output_ids[0], skip_special_tokens=True)
     return jsonify({
         "message": "Diarization completed successfully.",
-        "results": results
+        "results": summary
     }), 200
 @app.route('/deprecated/train', methods=['POST'])
 def deprecated_train():
