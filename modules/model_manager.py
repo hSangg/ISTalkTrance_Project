@@ -165,50 +165,59 @@ class ModelManager:
     def list_models(self):
         return list(self.models.keys())
 
-    def cross_validate_hmm_model(speaker_data, n_splits=5):
+    def cross_validate_hmm_model(speaker_data, n_splits=4):
         scores = {}
 
         for speaker, data in speaker_data.items():
             print(f"\n🔁 Cross-validating for speaker: {speaker}")
             folds = KFold(n_splits=n_splits, shuffle=True, random_state=42)
-            mfcc_data = data
 
-            X_all = np.array(mfcc_data, dtype=object)
+            X_all = np.array(data, dtype=object)
+            print("📌 Sample X_all:", X_all[0])
+
             fold_scores = []
 
-            # Iterate over folds for cross-validation
             for fold_idx, (train_idx, test_idx) in enumerate(folds.split(X_all)):
-                X_train = [X_all[i] for i in train_idx]
-                X_test = [X_all[i] for i in test_idx]
+                X_train = [X_all[i][0] for i in train_idx]
+                y_train = [X_all[i][1] for i in train_idx]
 
-                # Train HMM model
+                X_test = [X_all[i][0] for i in test_idx]
+                y_test = [X_all[i][1] for i in test_idx]
+
+                X_train_valid = [x for x in X_train if x is not None and len(x) > 0]
+
+                # Train HMM
                 model = hmm.GaussianHMM(n_components=5, covariance_type="diag", n_iter=Config.HMM_ITERATIONS)
-                train_concat = np.vstack(X_train)
-                train_lengths = [len(x) for x in X_train]
+                train_concat = np.vstack(X_train_valid)
+                train_lengths = [len(x) for x in X_train_valid]
                 model.fit(train_concat, train_lengths)
 
-                # Evaluate on test set
-                test_concat = np.vstack(X_test)
+                # Log để kiểm tra
+                print(f"🧪 Total samples in train_concat: {train_concat.shape[0]}")
+                print(f"🧪 Sum of train_lengths: {sum(train_lengths)}")
+
+                # Predict labels
                 try:
-                    y_true = [label for _, label in [X_all[i] for i in test_idx]]
-                    y_pred = [ModelManager.predict_segment(feat, model) for feat, _ in [X_all[i] for i in test_idx]]
+                    y_pred = [ModelManager.predict_segment(feat, model) for feat in X_test]
 
-                    # Print Classification Report
                     print(f"📊 Fold {fold_idx + 1} Classification Report:")
-                    print(classification_report(y_true, y_pred, zero_division=0))
+                    print(classification_report(y_test, y_pred, zero_division=0))
 
-                    fold_scores.append(classification_report(y_true, y_pred, output_dict=True))
+                    fold_scores.append(classification_report(y_test, y_pred, output_dict=True))
 
                 except Exception as e:
                     print(f"❌ Error scoring fold {fold_idx + 1}: {e}")
 
-            # Store scores and print average score for each speaker
+            # Average accuracy
             scores[speaker] = fold_scores
-            avg_score = np.mean([score['accuracy'] for score in fold_scores]) if fold_scores else float("-inf")
-            print(f"\n📊 Average accuracy for {speaker}: {avg_score:.2f}")
+            if fold_scores:
+                avg_acc = np.mean([score['accuracy'] for score in fold_scores])
+                print(f"\n📊 Average accuracy for {speaker}: {avg_acc:.2f}")
+            else:
+                print(f"\n⚠️ No valid scores for {speaker}")
+                avg_acc = float("-inf")
 
         return scores
-
 
     @staticmethod
     def train_hmm_model(speaker, data):
