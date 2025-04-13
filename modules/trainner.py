@@ -34,6 +34,29 @@ class Trainner:
         os.makedirs('hmm_wavelet_models', exist_ok=True)
 
     @staticmethod
+    def cross_validate_all_speakers():
+        speaker_data = {}
+        subfolders = [f.path for f in os.scandir(Config.TRAIN_VOICE) if f.is_dir()]
+
+        for subfolder in subfolders:
+            print("✨ Extracting features for sub-folder: ", subfolder)
+            annotation_file = os.path.join(subfolder, "script.txt")
+            audio_file = os.path.join(subfolder, "raw.WAV")
+
+            if not os.path.exists(annotation_file) or not os.path.exists(audio_file):
+                continue
+
+            annotations = Utils.load_annotations(annotation_file)
+            folder_data = FeatureExtractor.extract_append_features(audio_file, annotations)
+
+            for speaker, features in folder_data.items():
+                if speaker not in speaker_data:
+                    speaker_data[speaker] = []
+                speaker_data[speaker].extend(features)
+
+        ModelManager.cross_validate_hmm_model(speaker_data, n_splits=5)
+
+    @staticmethod
     def train_hmm_model_all():
         speaker_data = {}
         subfolders = [f.path for f in os.scandir(Config.TRAIN_VOICE) if f.is_dir()]
