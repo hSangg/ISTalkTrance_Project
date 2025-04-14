@@ -17,7 +17,7 @@ from datetime import datetime
 warnings.filterwarnings('ignore')
 
 class SpeakerIdentification:
-    def __init__(self, n_qubits=4, n_hmm_components=5, use_gpu=True):
+    def __init__(self, n_qubits=4, n_hmm_components=2, use_gpu=True):
         self.n_qubits = n_qubits
         self.n_hmm_components = n_hmm_components
         self.speakers = {}
@@ -140,8 +140,8 @@ class SpeakerIdentification:
         
         return train_data, test_data
 
-    def train(self):
-        train_data, _ = self.train_test_split()
+    def train(self, segments=None):
+        train_data = segments if segments is not None else self.speakers
         
         print(f"Starting training... {len(train_data)} speakers to process")
         os.makedirs(self.save_dir, exist_ok=True)
@@ -299,8 +299,9 @@ def train_all_datasets(base_folder, use_gpu=True):
 
     print("\nTraining on all datasets combined...")
 
-    si.speakers = all_segments
-    si.train()
+    si.speakers = train_segments
+
+    si.train(train_segments) 
 
     return si
 
@@ -483,6 +484,7 @@ def cross_validate(base_folder, k=5, save_dir="crossval_models", log_file="cross
         append_log(summary_lines)
 
 if __name__ == "__main__":
+    # Check for GPU availability
     use_gpu = torch.cuda.is_available()
     if use_gpu:
         print(f"GPU detected: {torch.cuda.get_device_name(0)}")
