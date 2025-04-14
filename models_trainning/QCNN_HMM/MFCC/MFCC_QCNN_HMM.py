@@ -12,6 +12,8 @@ from sklearn.model_selection import KFold, train_test_split
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 import time
+from datetime import datetime
+
 warnings.filterwarnings('ignore')
 
 class SpeakerIdentification:
@@ -391,10 +393,10 @@ def cross_validate(base_folder, k=3, save_dir="crossval_models", log_file="cross
     def append_log(lines):
         with open(log_file, "a") as f:
             for line in lines:
-                f.write(line + "\n")
+                timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+                f.write(f"{timestamp} {line}\n")
 
-    with open(log_file, "w") as f:
-        f.write(f"🔁 Cross-Validation Start - {k} folds\n")
+    append_log([f"🔁 Cross-Validation Start - {k} folds\n"])
 
     si_base = SpeakerIdentification(use_gpu=use_gpu)
 
