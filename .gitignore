@@ -33,3 +33,4 @@ train/*
 /temp_test
 /mfcc_qcnn_hmm_models
 /temp_wav
+/ok

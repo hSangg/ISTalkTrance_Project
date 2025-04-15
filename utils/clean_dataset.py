@@ -2,7 +2,7 @@ import os
 from collections import Counter
 
 # Đường dẫn thư mục gốc chứa các subfolder
-root_dir = 'test_voice'
+root_dir = 'train_voice'
 
 # Tập hợp tất cả speaker xuất hiện
 all_speakers = []
@@ -22,7 +22,7 @@ for subfolder in os.listdir(root_dir):
 speaker_counts = Counter(all_speakers)
 
 # Tìm speaker xuất hiện ít hơn 4 lần
-rare_speakers = {speaker for speaker, count in speaker_counts.items() if count < 4}
+rare_speakers = {speaker for speaker, count in speaker_counts.items() if count < 10}
 
 print("⚠️ Những speaker xuất hiện ít hơn 4 lần:")
 for speaker in rare_speakers:

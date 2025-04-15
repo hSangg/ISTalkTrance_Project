@@ -200,7 +200,7 @@ def predict_speaker(model, label_encoder, audio_path, fixed_length=100):
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import classification_report
 
-def cross_validate_rnn(features, labels, speakers, num_folds=5):
+def cross_validate_rnn(features, labels, speakers, num_folds=3):
     label_encoder = LabelEncoder()
     label_encoder.fit(speakers)
     encoded_labels = label_encoder.transform(labels)

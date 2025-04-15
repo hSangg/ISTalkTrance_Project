@@ -13,7 +13,7 @@ spk_model = SpeakerRecognition.from_hparams(
     savedir="speechbrain_models/spkrec-ecapa-voxceleb"
 )
 
-N_SPLITS = 5
+N_SPLITS = 3
 
 def time_to_seconds(timestamp):
     h, m, s = map(int, timestamp.split(":"))
