@@ -147,11 +147,13 @@ def evaluate_model(model, test_loader, label_encoder):
     accuracy = accuracy_score(labels_np, preds_np)
     
     metrics = {
-        'precision_macro': precision,
-        'recall_macro': recall,
-        'f1_macro': f1_macro,
-        'f1_weighted': f1_weighted,
-        'accuracy': accuracy
+        'precision_macro': precision_score(labels_np, preds_np, average='macro'),
+        'precision_weighted': precision_score(labels_np, preds_np, average='weighted'),
+        'recall_macro': recall_score(labels_np, preds_np, average='macro'),
+        'recall_weighted': recall_score(labels_np, preds_np, average='weighted'),
+        'f1_macro': f1_score(labels_np, preds_np, average='macro'),
+        'f1_weighted': f1_score(labels_np, preds_np, average='weighted'),
+        'accuracy': accuracy_score(labels_np, preds_np)
     }
     
     return metrics
@@ -392,7 +394,9 @@ def train_speaker_recognition_system():
             f.write(f"Fold {metrics['fold']} Results:\n")
             f.write(f"Accuracy: {metrics['accuracy']:.4f}\n")
             f.write(f"Precision (Macro): {metrics['precision_macro']:.4f}\n")
+            f.write(f"Precision (Weighted): {metrics['precision_weighted']:.4f}\n")
             f.write(f"Recall (Macro): {metrics['recall_macro']:.4f}\n")
+            f.write(f"Recall (Weighted): {metrics['recall_weighted']:.4f}\n")
             f.write(f"F1-Score (Macro): {metrics['f1_macro']:.4f}\n")
             f.write(f"F1-Score (Weighted): {metrics['f1_weighted']:.4f}\n\n")
     
