@@ -1,27 +1,51 @@
 import os
+from collections import defaultdict
 
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import torchaudio
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, accuracy_score
 from sklearn.model_selection import StratifiedKFold
 from speechbrain.inference.classifiers import EncoderClassifier
+from torch import nn
+from torch.utils.data import Dataset, DataLoader
+
+TRAIN_ROOT = "test_voice"
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+BATCH_SIZE = 32
+EPOCHS = 20
 
 
-class SpeakerRNN(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, num_layers=2):
-        super(SpeakerRNN, self).__init__()
-        self.gru = nn.GRU(input_dim, hidden_dim, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_dim, output_dim)
+# ==== Dataset and Model ====
+class XvectorDataset(Dataset):
+    def __init__(self, xvectors, labels, label_to_idx):
+        self.xvectors = xvectors
+        self.labels = labels
+        self.label_to_idx = label_to_idx
+
+    def __len__(self):
+        return len(self.xvectors)
+
+    def __getitem__(self, idx):
+        x = torch.tensor(self.xvectors[idx], dtype=torch.float32)
+        y = torch.tensor(self.label_to_idx[self.labels[idx]], dtype=torch.long)
+        return x, y
+
+class RNNClassifier(nn.Module):
+    def __init__(self, input_size, hidden_size, num_classes):
+        super(RNNClassifier, self).__init__()
+        self.rnn = nn.LSTM(input_size, hidden_size, batch_first=True)
+        self.fc = nn.Linear(hidden_size, num_classes)
 
     def forward(self, x):
-        out, _ = self.gru(x)
-        out = self.fc(out[:, -1, :])
+        if x.dim() == 2:
+            x = x.unsqueeze(1)
+        _, (h_n, _) = self.rnn(x)
+        out = self.fc(h_n[-1])
         return out
 
 
+# ==== Utils ====
 def time_to_seconds(timestamp):
     h, m, s = map(int, timestamp.split(":"))
     return h * 3600 + m * 60 + s
@@ -29,138 +53,144 @@ def time_to_seconds(timestamp):
 
 def load_script(script_path):
     segments, speakers = [], []
-    with open(script_path, "r", encoding="utf-8") as file:
-        for line in file:
+    with open(script_path, "r", encoding="utf-8") as f:
+        for line in f:
             start, end, speaker = line.strip().split()
             segments.append((time_to_seconds(start), time_to_seconds(end)))
             speakers.append(speaker)
     return segments, speakers
 
 
-def extract_xvectors(audio_path, segments, classifier):
-    waveform, sample_rate = torchaudio.load(audio_path)
-    xvector_dict = {}
+def process_embedding(embedding):
+    if embedding.ndim == 3:
+        embedding = embedding.reshape(embedding.shape[0], -1)
+    elif embedding.ndim == 1:
+        embedding = embedding.reshape(1, -1)
+    if embedding.shape[1] == 1024:
+        embedding = embedding[:, :512]
+    return embedding
 
-    for (start, end), speaker in segments:
+def extract_xvectors(audio_path, segments, speakers, classifier):
+    waveform, sample_rate = torchaudio.load(audio_path)
+    xvector_dict = defaultdict(list)
+
+    for (start, end), speaker in zip(segments, speakers):
         start_sample = int(start * sample_rate)
         end_sample = int(end * sample_rate)
         segment_waveform = waveform[:, start_sample:end_sample]
 
         with torch.no_grad():
             embedding = classifier.encode_batch(segment_waveform).squeeze().numpy()
-
-        if speaker not in xvector_dict:
-            xvector_dict[speaker] = []
+        embedding = process_embedding(embedding)
         xvector_dict[speaker].append(embedding)
-
     return xvector_dict
 
+# ==== Training Logic ====
+def train_rnn_model(X, y, label_to_idx, input_size):
+    num_classes = len(label_to_idx)
+    dataset = XvectorDataset(X, y, label_to_idx)
+    train_loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
-def train_rnn_for_speaker(speaker, xvectors, num_epochs=50):
-    if len(xvectors) == 0:
-        return None
+    model = RNNClassifier(input_size=input_size, hidden_size=128, num_classes=num_classes).to(DEVICE)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    xvectors = np.mean(xvectors, axis=1)
-    input_dim = xvectors.shape[1]
-    hidden_dim = 128
-    output_dim = 1
-
-    model = SpeakerRNN(input_dim, hidden_dim, output_dim)
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-    x_train = torch.tensor(xvectors, dtype=torch.float32).unsqueeze(1)
-
-    y_train = torch.ones((len(xvectors), 1), dtype=torch.float32)
-
-    for epoch in range(num_epochs):
-        optimizer.zero_grad()
-        outputs = model(x_train)
-        loss = criterion(outputs, y_train)
-        loss.backward()
-        optimizer.step()
+    for epoch in range(EPOCHS):
+        model.train()
+        total_loss = 0
+        for xb, yb in train_loader:
+            xb, yb = xb.to(DEVICE), yb.to(DEVICE)
+            optimizer.zero_grad()
+            output = model(xb)
+            loss = criterion(output, yb)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+        print(f"📚 Epoch {epoch+1}/{EPOCHS} - Loss: {total_loss:.4f}")
 
     return model
-def cross_validate_rnn(xvectors_dict, n_splits=5):
-    all_xvectors = []
-    all_speakers = []
-
-    for speaker, xvectors in xvectors_dict.items():
-        all_xvectors.extend(xvectors)
-        all_speakers.extend([speaker] * len(xvectors))
-
-    X = np.array(all_xvectors)
-    y = np.array(all_speakers)
-
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-
-    all_y_true = []
-    all_y_pred = []
-
-    for fold, (train_idx, test_idx) in enumerate(skf.split(X, y), 1):
-        print(f"\n🔁 Fold {fold}/{n_splits}")
-
-        X_train, X_test = X[train_idx], X[test_idx]
-        y_train, y_test = y[train_idx], y[test_idx]
-
-        models = {}
-        for speaker in np.unique(y_train):
-            speaker_xvectors = X_train[y_train == speaker]
-            model = train_rnn_for_speaker(speaker, speaker_xvectors)
-            models[speaker] = model
-
-        y_true, y_pred = [], []
-        for i in range(len(X_test)):
-            speaker = y_test[i]
-            model = models.get(speaker, None)
-
-            if model is None:
-                continue
-
-            x_test = torch.tensor(X_test[i], dtype=torch.float32).unsqueeze(0)
-            with torch.no_grad():
-                pred = model(x_test).squeeze().numpy()
-
-            distances = []
-            for stored_speaker, stored_model in models.items():
-                stored_embeddings = np.array([np.mean(stored_model.fc.weight.detach().numpy(), axis=0)])
-                distance = np.linalg.norm(pred - stored_embeddings)
-                distances.append((stored_speaker, distance))
-
-            predicted_speaker = min(distances, key=lambda x: x[1])[0]
-
-            y_true.append(speaker)
-            y_pred.append(predicted_speaker)
-
-        all_y_true.extend(y_true)
-        all_y_pred.extend(y_pred)
-
-        print(classification_report(y_true, y_pred))
-
-    print("\n🔚 Final Evaluation Across All Folds:")
-    print(classification_report(all_y_true, all_y_pred))
 
 
-classifier = EncoderClassifier.from_hparams(source="speechbrain/spkrec-xvect-voxceleb", run_opts={"device": "cpu"})
-train_voice_dir = "train_voice"
-speaker_xvectors = {}
+def evaluate_model(model, X_test, y_test, label_to_idx):
+    idx_to_label = {v: k for k, v in label_to_idx.items()}
+    model.eval()
+    preds, true = [], []
 
-for subdir in os.listdir(train_voice_dir):
-    subdir_path = os.path.join(train_voice_dir, subdir)
-    audio_file = os.path.join(subdir_path, "raw.WAV")
-    script_file = os.path.join(subdir_path, "script.txt")
+    with torch.no_grad():
+        for x, label in zip(X_test, y_test):
+            x_tensor = torch.tensor(x, dtype=torch.float32).unsqueeze(0).to(DEVICE)
+            output = model(x_tensor)
+            pred_idx = output.argmax(dim=1).item()
+            preds.append(idx_to_label[pred_idx])
+            true.append(label)
 
-    if os.path.isfile(audio_file) and os.path.isfile(script_file):
-        print(f"📂 Processing: {subdir}")
+    print("\n==== 📊 Evaluation Report ====")
+    print(classification_report(true, preds, zero_division=0))
+    print(f"🎯 Accuracy: {accuracy_score(true, preds):.4f}")
 
-        segments, speakers = load_script(script_file)
-        xvector_dict = extract_xvectors(audio_file, zip(segments, speakers), classifier)
 
-        for speaker, xvectors in xvector_dict.items():
-            if len(xvectors) == 0:
-                continue
+# ==== Main Pipeline ====
+def run_rnn_pipeline():
+    classifier = EncoderClassifier.from_hparams(
+        source="speechbrain/spkrec-xvect-voxceleb",
+        run_opts={"device": "cpu"}
+    )
 
-            if speaker not in speaker_xvectors:
-                speaker_xvectors[speaker] = []
-            speaker_xvectors[speaker].extend(xvectors)
+    xvectors, labels = [], []
 
-cross_validate_rnn(speaker_xvectors)
+    for folder in os.listdir(TRAIN_ROOT):
+        subfolder_path = os.path.join(TRAIN_ROOT, folder)
+        audio_path = os.path.join(subfolder_path, "raw.WAV")
+        script_path = os.path.join(subfolder_path, "script.txt")
+
+        if not os.path.exists(audio_path) or not os.path.exists(script_path):
+            continue
+
+        segments, speakers = load_script(script_path)
+        xvector_dict = extract_xvectors(audio_path, segments, speakers, classifier)
+
+        for speaker, vecs in xvector_dict.items():
+            for v in vecs:
+                xvectors.append(v)
+                labels.append(speaker)
+
+    print(f"📦 Loaded {len(xvectors)} xvectors")
+
+    input_size = xvectors[0].shape[1]
+    label_to_idx = {label: idx for idx, label in enumerate(sorted(set(labels)))}
+
+    skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+    accuracies = []
+
+    for fold, (train_idx, test_idx) in enumerate(skf.split(xvectors, labels)):
+        print(f"\n=== Fold {fold + 1} ===")
+        X_train = [xvectors[i] for i in train_idx]
+        y_train = [labels[i] for i in train_idx]
+        X_test = [xvectors[i] for i in test_idx]
+        y_test = [labels[i] for i in test_idx]
+
+        model = train_rnn_model(X_train, y_train, label_to_idx, input_size)
+        evaluate_model(model, X_test, y_test, label_to_idx)
+
+        # Calculate accuracy manually
+        model.eval()
+        preds, true = [], []
+        with torch.no_grad():
+            for x, label in zip(X_test, y_test):
+                x_tensor = torch.tensor(x, dtype=torch.float32).unsqueeze(0).to(DEVICE)
+                output = model(x_tensor)
+                pred_idx = output.argmax(dim=1).item()
+                preds.append(pred_idx)
+                true.append(label_to_idx[label])
+
+        acc = accuracy_score(true, preds)
+        accuracies.append(acc)
+
+    print("\n🎉 Final 3-Fold Cross Validation Accuracy:")
+    print("📊 Accuracies per fold:", ["{:.4f}".format(a) for a in accuracies])
+    print("🔁 Mean Accuracy: {:.4f}".format(np.mean(accuracies)))
+
+
+if __name__ == "__main__":
+    print("==== 🚀 Training RNN for Speaker Recognition ====")
+    run_rnn_pipeline()
