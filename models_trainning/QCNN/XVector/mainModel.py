@@ -29,9 +29,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 dev = qml.device("lightning.gpu", wires=N_QUBITS)
-
 @qml.qnode(dev, interface="torch")
 def quantum_circuit(inputs, weights):
+    if inputs.shape[0] < N_QUBITS:
+        inputs = F.pad(inputs, (0, N_QUBITS - inputs.shape[0]))
+    elif inputs.shape[0] > N_QUBITS:
+        inputs = inputs[:N_QUBITS]
+
     for i in range(N_QUBITS):
         qml.RY(inputs[i], wires=i)
     
@@ -49,7 +53,6 @@ def quantum_circuit(inputs, weights):
 class XVectorCompressor(nn.Module):
     def __init__(self, input_dim=512, output_dim=N_QUBITS):
         super(XVectorCompressor, self).__init__()
-        
         self.compression = nn.Sequential(
             nn.Linear(input_dim, 64),
             nn.ReLU(),
@@ -237,10 +240,15 @@ def train_speaker_recognition_system():
         if not os.path.isdir(meeting_path):
             continue
             
-        audio_file = os.path.join(meeting_path, "raw.wav")
+        audio_file = None
         script_file = os.path.join(meeting_path, "script.txt")
-        
-        if not os.path.exists(audio_file) or not os.path.exists(script_file):
+
+        for ext in ['.wav', '.WAV']:
+            if os.path.exists(os.path.join(meeting_path, f"raw{ext}")):
+                audio_file = os.path.join(meeting_path, f"raw{ext}")
+                break
+
+        if not audio_file or not os.path.exists(script_file):
             print(f"Skipping {meeting_dir}: Missing audio or script file")
             continue
             
