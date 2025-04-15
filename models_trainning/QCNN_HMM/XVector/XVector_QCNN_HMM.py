@@ -17,7 +17,7 @@ import librosa
 warnings.filterwarnings('ignore')
 
 class SpeakerIdentification:
-    def __init__(self, n_qubits=4, n_hmm_components=5, use_gpu=True):
+    def __init__(self, n_qubits=20, n_hmm_components=5, use_gpu=True):
         self.n_qubits = n_qubits
         self.n_hmm_components = n_hmm_components
         self.speakers = {}
@@ -66,22 +66,19 @@ class SpeakerIdentification:
             return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
         
         self.qcnn = qcnn
-        self.weights = np.random.randn(n_qubits * 2 + 1)  # Adjusted weight size for the model
+        self.weights = np.random.randn(n_qubits * 2 + 1)
 
     def extract_xvector(self, audio_path, start_time, end_time):
         """Extract X-vector embeddings using SpeechBrain's pretrained model"""
         try:
-            # Load audio segment
-            y, sr = librosa.load(audio_path, sr=16000)  # SpeechBrain expects 16kHz
+            y, sr = librosa.load(audio_path, sr=16000)
             start_sample = int(start_time * sr)
             end_sample = int(end_time * sr)
             
             audio_segment = y[start_sample:end_sample]
             
-            # Convert to tensor and move to device
             audio_tensor = torch.tensor(audio_segment).unsqueeze(0).to(self.device)
             
-            # Extract x-vector
             with torch.no_grad():
                 embeddings = self.xvector_model.encode_batch(audio_tensor)
                 xvector = embeddings.squeeze().cpu().numpy()
@@ -89,30 +86,25 @@ class SpeakerIdentification:
             return xvector
         except Exception as e:
             print(f"Error extracting X-vector: {e}")
-            # Return empty array if extraction fails
             return np.array([])
 
     def process_qcnn(self, xvector_features):
         """Process X-vector features through QCNN"""
         quantum_features = []
         
-        # Ensure we have enough features for n_qubits
         if len(xvector_features) < self.n_qubits:
             xvector_features = np.pad(xvector_features, (0, self.n_qubits - len(xvector_features)))
         
-        # Use first n_qubits features for quantum circuit
         input_features = xvector_features[:self.n_qubits]
         
-        # Scale features to appropriate range for quantum circuit
         input_features = np.clip(input_features, -np.pi, np.pi)
         
         q_output = self.qcnn(input_features, self.weights)
         quantum_features.append(q_output)
         
-        # Combine classical and quantum features
         combined_features = np.concatenate([
-            xvector_features,  # Original x-vector
-            np.array(quantum_features).flatten()  # Quantum transformed features
+            xvector_features,
+            np.array(quantum_features).flatten()
         ])
         
         return combined_features.reshape(1, -1)
@@ -125,7 +117,7 @@ class SpeakerIdentification:
         
         for line in lines:
             parts = line.strip().split()
-            if len(parts) >= 3:  # Ensure we have at least start time, end time, and speaker
+            if len(parts) >= 3:
                 start_time = self.time_to_seconds(parts[0])
                 end_time = self.time_to_seconds(parts[1])
                 speaker = parts[2]
@@ -165,11 +157,9 @@ class SpeakerIdentification:
             
             for audio_path, start, end in segments:
                 
-                # Extract X-vector
                 xvector = self.extract_xvector(audio_path, start, end)
                 
                 if len(xvector) > 0:
-                    # Process through QCNN
                     q_features = self.process_qcnn(xvector)
                     if q_features.shape[0] > 0:
                         all_features.append(q_features)
@@ -218,7 +208,6 @@ class SpeakerIdentification:
         
         if len(xvector) == 0:
             print(f"⚠️ Failed to extract X-vector from {test_audio_path} at {start_time}-{end_time}")
-            # Return default prediction if extraction fails
             return list(self.hmm_models.keys())[0] if self.hmm_models else "unknown", {}
         
         test_features = self.process_qcnn(xvector)
@@ -445,92 +434,6 @@ def cross_validate(base_folder, k=3, save_dir="crossval_models", log_file="cross
             f"Average F1-score: {avg_metrics[3]:.2f}"
         ]
         append_log(summary_lines)
-
-def train_all_datasets(base_folder, use_gpu=True):
-    si = SpeakerIdentification(use_gpu=use_gpu)
-    
-    datasets = [d for d in os.listdir(base_folder) if os.path.isdir(os.path.join(base_folder, d))]
-
-    all_segments = {}
-    
-    for dataset in datasets:
-        dataset_path = os.path.join(base_folder, dataset)
-        
-        audio_file = None
-        for ext in ["raw.wav", "raw.WAV"]:
-            audio_file_candidate = os.path.join(dataset_path, ext)
-            if os.path.exists(audio_file_candidate):
-                audio_file = audio_file_candidate
-                break
-
-        script_file = os.path.join(dataset_path, "script.txt")
-        
-        if not audio_file or not os.path.exists(script_file):
-            print(f"Skipping {dataset}: Missing raw.wav/raw.WAV or script.txt")
-            continue
-        
-        print(f"Loading dataset: {dataset}")
-        
-        speakers_data = si.parse_script(script_file)
-        for speaker, segments in speakers_data.items():
-            if speaker not in all_segments:
-                all_segments[speaker] = []
-            all_segments[speaker].extend([(audio_file, start, end) for start, end in segments])
-
-    # Split for training - in a real scenario, you might want to do a proper train/test split
-    train_segments = all_segments
-
-    print("\nTraining on all datasets combined...")
-    si.speakers = train_segments
-    si.train(train_segments) 
-
-    return si
-
-def evaluate_all_datasets(si, base_folder):
-    print("\nEvaluating on all datasets...")
-    
-    datasets = [d for d in os.listdir(base_folder) if os.path.isdir(os.path.join(base_folder, d))]
-
-    total = 0
-    correct = 0
-    y_true = []
-    y_pred = []
-    
-    for dataset in datasets:
-        dataset_path = os.path.join(base_folder, dataset)
-        
-        audio_file = None
-        for ext in ["raw.wav", "raw.WAV"]:
-            audio_file_candidate = os.path.join(dataset_path, ext)
-            if os.path.exists(audio_file_candidate):
-                audio_file = audio_file_candidate
-                break
-                
-        script_file = os.path.join(dataset_path, "script.txt")
-        
-        if not audio_file or not os.path.exists(script_file):
-            continue
-        
-        speakers_data = si.parse_script(script_file)
-        
-        for speaker, segments in speakers_data.items():
-            for start, end in segments:
-                predicted_speaker, _ = si.predict(audio_file, start, end)
-
-                y_true.append(speaker)
-                y_pred.append(predicted_speaker)
-
-                if predicted_speaker == speaker:
-                    correct += 1
-                total += 1
-
-    accuracy = correct / total if total > 0 else 0
-    print(f"\nOverall Evaluation - Accuracy: {accuracy:.2%}")
-    
-    precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, average='macro')
-    print(f"Precision: {precision:.2f}")
-    print(f"Recall: {recall:.2f}")
-    print(f"F1-Score (Macro-Averaged): {f1:.2f}")
 
 if __name__ == "__main__":
     use_gpu = torch.cuda.is_available()

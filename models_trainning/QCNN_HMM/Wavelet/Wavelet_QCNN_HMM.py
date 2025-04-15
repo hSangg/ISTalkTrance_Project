@@ -17,7 +17,7 @@ from datetime import datetime
 warnings.filterwarnings('ignore')
 
 class SpeakerIdentification:
-    def __init__(self, n_qubits=4, n_hmm_components=2, use_gpu=True):
+    def __init__(self, n_qubits=20, n_hmm_components=2, use_gpu=True):
         self.n_qubits = n_qubits
         self.n_hmm_components = n_hmm_components
         self.speakers = {}
@@ -57,39 +57,66 @@ class SpeakerIdentification:
         self.weights = np.random.randn(n_qubits)
 
     def extract_wavelet_features(self, audio_path, start_time, end_time, wavelet='db4', level=5):
-        y, sr = librosa.load(audio_path, sr=None)
-        start_sample = int(start_time * sr)
-        end_sample = int(end_time * sr)
-        audio_segment = y[start_sample:end_sample]
-        
-        coeffs = pywt.wavedec(audio_segment, wavelet, level=level)
-        
-        features = []
-        
-        for i, c in enumerate(coeffs):
-            features.append(np.mean(c))        # Mean
-            features.append(np.std(c))         # Standard deviation
-            features.append(np.max(np.abs(c))) # Maximum absolute value
-            features.append(np.sum(c**2))      # Energy
+        try:
+            y, sr = librosa.load(audio_path, sr=None)
+            start_sample = int(start_time * sr)
+            end_sample = int(end_time * sr)
 
-        window_size = sr // 10
-        hop_length = window_size // 2
-        
-        frames = []
-        for i in range(0, len(audio_segment) - window_size, hop_length):
-            segment = audio_segment[i:i+window_size]
-            window_coeffs = pywt.wavedec(segment, wavelet, level=min(level, pywt.dwt_max_level(len(segment), pywt.Wavelet(wavelet).dec_len)))
-            
-            window_features = []
-            for c in window_coeffs:
-                window_features.extend([np.mean(c), np.std(c), np.max(np.abs(c)), np.sum(c**2)])
-            
-            frames.append(window_features)
-        
-        if frames:
-            return np.array(frames)
-        else:
-            return np.array([features])
+            if start_sample >= end_sample or start_sample >= len(y):
+                print(f"Invalid segment range: {audio_path} [{start_time}s - {end_time}s]")
+                return None
+
+            end_sample = min(end_sample, len(y))
+            audio_segment = y[start_sample:end_sample]
+
+            if len(audio_segment) == 0:
+                print(f"Empty audio segment: {audio_path} [{start_time}s - {end_time}s]")
+                return None
+
+            try:
+                coeffs = pywt.wavedec(audio_segment, wavelet, level=level)
+            except Exception as e:
+                return None
+
+            features = []
+            for c in coeffs:
+                features.append(np.mean(c))
+                features.append(np.std(c))
+                features.append(np.max(np.abs(c)))
+                features.append(np.sum(c**2))
+
+            window_size = sr // 10
+            hop_length = window_size // 2
+
+            frames = []
+            for i in range(0, len(audio_segment) - window_size, hop_length):
+                segment = audio_segment[i:i + window_size]
+                if len(segment) < window_size:
+                    continue
+
+                try:
+                    max_level = min(level, pywt.dwt_max_level(len(segment), pywt.Wavelet(wavelet).dec_len))
+                    window_coeffs = pywt.wavedec(segment, wavelet, level=max_level)
+                except Exception as e:
+                    continue
+
+                window_features = []
+                for c in window_coeffs:
+                    window_features.extend([
+                        np.mean(c),
+                        np.std(c),
+                        np.max(np.abs(c)),
+                        np.sum(c**2)
+                    ])
+                frames.append(window_features)
+
+            if frames:
+                return np.array(frames)
+            else:
+                return np.array([features])
+
+        except Exception as e:
+            return None
 
 
     def process_qcnn(self, wavelet_features, step=5):
@@ -272,78 +299,6 @@ class SpeakerIdentification:
             return np.vstack(all_features)
         return np.array([])
 
-def train_all_datasets(base_folder, use_gpu=True):
-    si = SpeakerIdentification(use_gpu=use_gpu)
-    
-    datasets = [d for d in os.listdir(base_folder) if os.path.isdir(os.path.join(base_folder, d))]
-
-    all_segments = {}
-    
-    for dataset in datasets:
-        dataset_path = os.path.join(base_folder, dataset)
-        audio_file = os.path.join(dataset_path, "raw.wav")
-        script_file = os.path.join(dataset_path, "script.txt")
-        
-        if not os.path.exists(audio_file) or not os.path.exists(script_file):
-            print(f"Skipping {dataset}: Missing raw.wav or script.txt")
-            continue
-        
-        print(f"Loading dataset: {dataset}")
-        
-        speakers_data = si.parse_script(script_file)
-        for speaker, segments in speakers_data.items():
-            if speaker not in all_segments:
-                all_segments[speaker] = []
-            all_segments[speaker].extend([(audio_file, start, end) for start, end in segments])
-
-
-    print("\nTraining on all datasets combined...")
-
-    si.speakers = train_segments
-
-    si.train(train_segments) 
-
-    return si
-
-def evaluate_all_datasets(si, base_folder):
-    print("\nEvaluating on all datasets...")
-    
-    datasets = [d for d in os.listdir(base_folder) if os.path.isdir(os.path.join(base_folder, d))]
-
-    total = 0
-    correct = 0
-    y_true = []
-    y_pred = []
-    
-    for dataset in datasets:
-        dataset_path = os.path.join(base_folder, dataset)
-        audio_file = os.path.join(dataset_path, "raw.wav")
-        script_file = os.path.join(dataset_path, "script.txt")
-        
-        if not os.path.exists(audio_file) or not os.path.exists(script_file):
-            continue
-        
-        speakers_data = si.parse_script(script_file)
-        
-        for speaker, segments in speakers_data.items():
-            for start, end in segments:
-                predicted_speaker, _ = si.predict(audio_file, start, end)
-
-                y_true.append(speaker)
-                y_pred.append(predicted_speaker)
-
-                if predicted_speaker == speaker:
-                    correct += 1
-                total += 1
-
-    accuracy = correct / total if total > 0 else 0
-    print(f"\nOverall Evaluation - Accuracy: {accuracy:.2%}")
-    
-    precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, average='macro')
-    print(f"Precision: {precision:.2f}")
-    print(f"Recall: {recall:.2f}")
-    print(f"F1-Score (Macro-Averaged): {f1:.2f}")
-    
 def save_model(si, save_dir="wavelet_qcnn_hmm_models"):
     os.makedirs(save_dir, exist_ok=True)
     
@@ -484,7 +439,6 @@ def cross_validate(base_folder, k=5, save_dir="crossval_models", log_file="cross
         append_log(summary_lines)
 
 if __name__ == "__main__":
-    # Check for GPU availability
     use_gpu = torch.cuda.is_available()
     if use_gpu:
         print(f"GPU detected: {torch.cuda.get_device_name(0)}")
