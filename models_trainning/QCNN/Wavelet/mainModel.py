@@ -289,28 +289,39 @@ def evaluate_model(model, test_loader, label_encoder, device):
     all_labels = label_encoder.inverse_transform(all_labels)
     all_preds = label_encoder.inverse_transform(all_preds)
     
-    precision = precision_score(all_labels, all_preds, average='macro')
-    recall = recall_score(all_labels, all_preds, average='macro')
-    f1 = f1_score(all_labels, all_preds, average='macro')
+    precision_macro = precision_score(all_labels, all_preds, average='macro')
+    precision_weighted = precision_score(all_labels, all_preds, average='weighted')
+
+    recall_macro = recall_score(all_labels, all_preds, average='macro')
+    recall_weighted = recall_score(all_labels, all_preds, average='weighted')
+
+    f1_macro = f1_score(all_labels, all_preds, average='macro')
     f1_weighted = f1_score(all_labels, all_preds, average='weighted')
+
     accuracy = accuracy_score(all_labels, all_preds)
 
-    print(f"Precision (Macro): {precision:.2f}")
-    print(f"Recall (Macro): {recall:.2f}")
-    print(f"F1-Score (Macro): {f1:.2f}")
+    print(f"Precision (Macro):   {precision_macro:.2f}")
+    print(f"Precision (Weighted):{precision_weighted:.2f}")
+    print(f"Recall (Macro):      {recall_macro:.2f}")
+    print(f"Recall (Weighted):   {recall_weighted:.2f}")
+    print(f"F1-Score (Macro):    {f1_macro:.2f}")
     print(f"F1-Score (Weighted): {f1_weighted:.2f}")
-    print(f"Accuracy: {accuracy:.2f}")
+    print(f"Accuracy:            {accuracy:.2f}")
+
     
-    logging.info(f"Precision (Macro): {precision:.2f}")
-    logging.info(f"Recall (Macro): {recall:.2f}")
-    logging.info(f"F1-Score (Macro): {f1:.2f}")
+    logging.info(f"Precision (Macro):   {precision_macro:.2f}")
+    logging.info(f"Precision (Weighted):{precision_weighted:.2f}")
+    logging.info(f"Recall (Macro):      {recall_macro:.2f}")
+    logging.info(f"Recall (Weighted):   {recall_weighted:.2f}")
+    logging.info(f"F1-Score (Macro):    {f1_macro:.2f}")
     logging.info(f"F1-Score (Weighted): {f1_weighted:.2f}")
-    logging.info(f"Accuracy: {accuracy:.2f}")
+    logging.info(f"Accuracy:            {accuracy:.2f}")
+
     
     metrics_df = pd.DataFrame({
         'Metric': ['Precision (Macro)', 'Recall (Macro)', 'F1-Score (Macro)', 
                    'F1-Score (Weighted)', 'Accuracy'],
-        'Value': [precision, recall, f1, f1_weighted, accuracy]
+        'Value': [precision_macro, recall_macro, f1_macro, f1_weighted, accuracy]
     })
     
     report = classification_report(all_labels, all_preds, target_names=label_encoder.classes_)
@@ -392,8 +403,6 @@ def train_speaker_recognition_with_cv(root_dir, n_folds=5):
     fold_results = []
     
     for fold, (train_idx, test_idx) in enumerate(kf.split(features)):
-        if fold == 0:
-            continue
         print(f"\n{'='*50}")
         print(f"FOLD {fold+1}/{n_folds}")
         print(f"{'='*50}")
@@ -461,6 +470,8 @@ def train_speaker_recognition_with_cv(root_dir, n_folds=5):
             print(f"Epoch {epoch + 1}/{EPOCHS}, Loss: {avg_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%")
         
         print(f"\nFinal evaluation for fold {fold+1}:")
+        logging.info(f"\nFinal evaluation for fold {fold+1}:")
+
         metrics_df, report, accuracy = evaluate_model(model, test_loader, label_encoder, device)
         
         print("\nClassification Report:")
