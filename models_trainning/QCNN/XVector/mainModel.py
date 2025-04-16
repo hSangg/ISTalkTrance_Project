@@ -16,11 +16,11 @@ from collections import defaultdict
 np.random.seed(42)
 torch.manual_seed(42)
 
-N_QUBITS = 4
+N_QUBITS = 7
 N_LAYERS = 2
-BATCH_SIZE = 4
+BATCH_SIZE = 64
 LEARNING_RATE = 0.001
-EPOCHS = 30
+EPOCHS = 10
 SEGMENT_DURATION = 1.0
 SAMPLE_RATE = 16000
 N_FOLDS = 3
@@ -29,16 +29,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 dev = qml.device("lightning.gpu", wires=N_QUBITS)
-@qml.qnode(dev, interface="torch")
+@qml.qnode(dev, interface="torch", diff_method="best")
 def quantum_circuit(inputs, weights):
-    if inputs.shape[0] < N_QUBITS:
-        inputs = F.pad(inputs, (0, N_QUBITS - inputs.shape[0]))
-    elif inputs.shape[0] > N_QUBITS:
-        inputs = inputs[:N_QUBITS]
+    # Đảm bảo inputs có kích thước đúng
+    assert inputs.shape[1] == N_QUBITS, f"Expected input shape (batch_size, {N_QUBITS}), got {inputs.shape}"
 
     for i in range(N_QUBITS):
-        qml.RY(inputs[i], wires=i)
-    
+        qml.RY(inputs[:, i], wires=i)  # Chạy qua tất cả các batch
+
     for l in range(N_LAYERS):
         for i in range(N_QUBITS):
             qml.RY(weights[l][i][0], wires=i)
@@ -46,9 +44,11 @@ def quantum_circuit(inputs, weights):
         
         for i in range(N_QUBITS - 1):
             qml.CNOT(wires=[i, i + 1])
-        qml.CNOT(wires=[N_QUBITS - 1, 0])
+        if N_QUBITS > 1:
+            qml.CNOT(wires=[N_QUBITS - 1, 0])
     
     return [qml.expval(qml.PauliZ(i)) for i in range(N_QUBITS)]
+
 
 class XVectorCompressor(nn.Module):
     def __init__(self, input_dim=512, output_dim=N_QUBITS):
@@ -56,7 +56,6 @@ class XVectorCompressor(nn.Module):
         self.compression = nn.Sequential(
             nn.Linear(input_dim, 64),
             nn.ReLU(),
-            nn.BatchNorm1d(64),
             nn.Linear(64, output_dim),
             nn.Tanh()
         )
@@ -73,19 +72,26 @@ class QuantumNeuralNetwork(nn.Module):
         self.qlayer = qml.qnn.TorchLayer(quantum_circuit, weight_shapes)
     
     def forward(self, x):
-        return self.qlayer(x)
+        batch_size = x.shape[0]
+        results = []
+        
+        for i in range(batch_size):
+            single_result = self.qlayer(x[i:i+1])
+            results.append(single_result)
+            
+        return torch.cat(results, dim=0)
 
 class QXVectorCNN(nn.Module):
     def __init__(self, n_qubits=N_QUBITS, n_layers=N_LAYERS, n_classes=2, xvector_dim=512):
         super(QXVectorCNN, self).__init__()
         
-        self.compressor = XVectorCompressor(input_dim=xvector_dim, output_dim=n_qubits)
+        self.compressor = XVectorCompressor(input_dim=xvector_dim, output_dim=N_QUBITS)
         self.qnn = QuantumNeuralNetwork(n_qubits=n_qubits, n_layers=n_layers)
         
         self.conv_layer = nn.Sequential(
-            nn.Conv1d(1, 8, kernel_size=2, stride=1, padding=0),
+            nn.Conv1d(1, 8, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2, stride=1)
+            nn.MaxPool1d(kernel_size=2, stride=2)
         )
         
         self.fc_input_size = self._get_conv_output_size(n_qubits)
@@ -100,16 +106,22 @@ class QXVectorCNN(nn.Module):
     def _get_conv_output_size(self, n_qubits):
         dummy_input = torch.zeros(1, 1, n_qubits)
         dummy_output = self.conv_layer(dummy_input)
-        return dummy_output.numel()
+        return dummy_output.view(1, -1).shape[1]
         
-    def forward(self, x):
+    def forward(self, x):        
         x = self.compressor(x)
+
         x = self.qnn(x)
+
         x = x.unsqueeze(1)
+
         x = self.conv_layer(x)
-        x = x.view(-1, self.fc_input_size)
+
+        x = x.view(x.size(0), -1)
+
         x = self.classifier(x)
         return x
+
 
 class SpeakerDataset(Dataset):
     def __init__(self, features, labels):
@@ -323,7 +335,7 @@ def train_speaker_recognition_system():
         test_dataset = SpeakerDataset(X_test, y_test)
         
         train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
-        test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, drop_last=False)
+        test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, drop_last=True)
         
         xvector_dim = xvectors_tensor.shape[1]
         
@@ -342,9 +354,13 @@ def train_speaker_recognition_system():
             qcnn_model.train()
             running_loss = 0.0
             
-            for batch_features, batch_labels in train_loader:
+            for batch_idx, (batch_features, batch_labels) in enumerate(train_loader):
                 batch_features = batch_features.to(device)
                 batch_labels = batch_labels.to(device)
+                if batch_features.size(0) == 1:  # If batch size is 1
+                    print("Batch size 1")
+                    continue
+
                 
                 optimizer.zero_grad()
                 

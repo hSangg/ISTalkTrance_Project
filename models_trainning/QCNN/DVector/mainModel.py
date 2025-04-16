@@ -1,79 +1,63 @@
 import os
-
 import librosa
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import pennylane as qml
-import seaborn as sns
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from sklearn.metrics import (
-    precision_score, recall_score, f1_score, accuracy_score,
-    classification_report, confusion_matrix
-)
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from sklearn.preprocessing import LabelEncoder
-from speechbrain.pretrained import SpeakerRecognition
+from speechbrain.pretrained import EncoderClassifier
 from torch.utils.data import Dataset, DataLoader
+import pennylane as qml
+from sklearn.model_selection import KFold
+from collections import defaultdict
 
 np.random.seed(42)
 torch.manual_seed(42)
 
-# Configuration parameters
-N_QUBITS = 4
+N_QUBITS = 7
 N_LAYERS = 2
-BATCH_SIZE = 4
+BATCH_SIZE = 64
 LEARNING_RATE = 0.001
-EPOCHS = 20
+EPOCHS = 10
 SEGMENT_DURATION = 1.0
 SAMPLE_RATE = 16000
+N_FOLDS = 3
 
-# Initialize quantum device
-dev = qml.device("default.qubit", wires=N_QUBITS)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
-@qml.qnode(dev, interface="torch")
+dev = qml.device("lightning.gpu", wires=N_QUBITS)
+@qml.qnode(dev, interface="torch", diff_method="best")
 def quantum_circuit(inputs, weights):
-    """
-    Quantum circuit for the QNN.
-    
-    Args:
-        inputs: Input features (compressed d-vectors)
-        weights: Trainable weights
-    """
-    # Encode the input features into quantum states
+    # Ensure inputs have correct dimensions
+    assert inputs.shape[1] == N_QUBITS, f"Expected input shape (batch_size, {N_QUBITS}), got {inputs.shape}"
+
     for i in range(N_QUBITS):
-        qml.RY(inputs[i], wires=i)
-    
-    # Apply parameterized quantum gates
+        qml.RY(inputs[:, i], wires=i)  # Run through all batches
+
     for l in range(N_LAYERS):
         for i in range(N_QUBITS):
             qml.RY(weights[l][i][0], wires=i)
             qml.RZ(weights[l][i][1], wires=i)
         
-        # Apply entanglement gates
         for i in range(N_QUBITS - 1):
             qml.CNOT(wires=[i, i + 1])
-        qml.CNOT(wires=[N_QUBITS - 1, 0])
+        if N_QUBITS > 1:
+            qml.CNOT(wires=[N_QUBITS - 1, 0])
     
-    # Return expectation values
     return [qml.expval(qml.PauliZ(i)) for i in range(N_QUBITS)]
 
-class DVectorCompressor(nn.Module):
-    """
-    Compresses pretrained d-vectors to feed into the quantum circuit
-    """
-    def __init__(self, input_dim=256, output_dim=N_QUBITS):
-        super(DVectorCompressor, self).__init__()
-        
+
+class DvectorCompressor(nn.Module):
+    def __init__(self, input_dim=192, output_dim=N_QUBITS):  # ECAPA-TDNN embedding size is 192
+        super(DvectorCompressor, self).__init__()
         self.compression = nn.Sequential(
             nn.Linear(input_dim, 64),
             nn.ReLU(),
-            nn.BatchNorm1d(64),
             nn.Linear(64, output_dim),
-            nn.Tanh()  # Bound values between -1 and 1 for quantum circuit
+            nn.Tanh()
         )
         
     def forward(self, x):
@@ -88,21 +72,51 @@ class QuantumNeuralNetwork(nn.Module):
         self.qlayer = qml.qnn.TorchLayer(quantum_circuit, weight_shapes)
     
     def forward(self, x):
-        return self.qlayer(x)
-
-class QDVectorModel(nn.Module):
-    def __init__(self, n_qubits=N_QUBITS, n_layers=N_LAYERS, n_classes=2, dvector_dim=256):
-        super(QDVectorModel, self).__init__()
+        batch_size = x.shape[0]
+        results = []
         
-        self.compressor = DVectorCompressor(input_dim=dvector_dim, output_dim=n_qubits)
+        for i in range(batch_size):
+            single_result = self.qlayer(x[i:i+1])
+            results.append(single_result)
+            
+        return torch.cat(results, dim=0)
+
+class QDVectorCNN(nn.Module):
+    def __init__(self, n_qubits=N_QUBITS, n_layers=N_LAYERS, n_classes=2, dvector_dim=192):  # ECAPA-TDNN embedding size
+        super(QDVectorCNN, self).__init__()
+        
+        self.compressor = DvectorCompressor(input_dim=dvector_dim, output_dim=N_QUBITS)
         self.qnn = QuantumNeuralNetwork(n_qubits=n_qubits, n_layers=n_layers)
-        self.post_processing = nn.Linear(n_qubits, n_classes)
+        
+        self.conv_layer = nn.Sequential(
+            nn.Conv1d(1, 8, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2, stride=2)
+        )
+        
+        self.fc_input_size = self._get_conv_output_size(n_qubits)
+        
+        self.classifier = nn.Sequential(
+            nn.Linear(self.fc_input_size, 16),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(16, n_classes)
+        )
     
-    def forward(self, x):
+    def _get_conv_output_size(self, n_qubits):
+        dummy_input = torch.zeros(1, 1, n_qubits)
+        dummy_output = self.conv_layer(dummy_input)
+        return dummy_output.view(1, -1).shape[1]
+        
+    def forward(self, x):        
         x = self.compressor(x)
         x = self.qnn(x)
-        x = self.post_processing(x)
+        x = x.unsqueeze(1)
+        x = self.conv_layer(x)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
         return x
+
 
 class SpeakerDataset(Dataset):
     def __init__(self, features, labels):
@@ -116,90 +130,50 @@ class SpeakerDataset(Dataset):
         return self.features[idx], self.labels[idx]
 
 def evaluate_model(model, test_loader, label_encoder):
-    """
-    Evaluate model performance with comprehensive metrics
-    """
     all_preds = []
     all_labels = []
     
     model.eval()
     with torch.no_grad():
         for features, labels in test_loader:
+            features = features.to(device)
+            labels = labels.to(device)
             outputs = model(features)
             _, predictions = torch.max(outputs.data, 1)
             
             all_preds.extend(predictions.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
     
-    # Convert numeric labels back to original class names
-    original_labels = label_encoder.inverse_transform(all_labels)
-    original_preds = label_encoder.inverse_transform(all_preds)
+    labels_np = np.array(all_labels)
+    preds_np = np.array(all_preds)
     
-    # Calculate metrics
-    precision = precision_score(original_labels, original_preds, average='macro')
-    recall = recall_score(original_labels, original_preds, average='macro')
-    f1 = f1_score(original_labels, original_preds, average='macro')
-    f1_weighted = f1_score(original_labels, original_preds, average='weighted')
-    accuracy = accuracy_score(original_labels, original_preds)
+    metrics = {
+        'precision_macro': precision_score(labels_np, preds_np, average='macro'),
+        'precision_weighted': precision_score(labels_np, preds_np, average='weighted'),
+        'recall_macro': recall_score(labels_np, preds_np, average='macro'),
+        'recall_weighted': recall_score(labels_np, preds_np, average='weighted'),
+        'f1_macro': f1_score(labels_np, preds_np, average='macro'),
+        'f1_weighted': f1_score(labels_np, preds_np, average='weighted'),
+        'accuracy': accuracy_score(labels_np, preds_np)
+    }
+    
+    return metrics
 
-    print(f"Precision (Macro): {precision:.4f}")
-    print(f"Recall (Macro): {recall:.4f}")
-    print(f"F1-Score (Macro): {f1:.4f}")
-    print(f"F1-Score (Weighted): {f1_weighted:.4f}")
-    print(f"Accuracy: {accuracy:.4f}")
-    
-    # Create metrics dataframe
-    metrics_df = pd.DataFrame({
-        'Metric': ['Precision (Macro)', 'Recall (Macro)', 'F1-Score (Macro)', 
-                  'F1-Score (Weighted)', 'Accuracy'],
-        'Value': [precision, recall, f1, f1_weighted, accuracy]
-    })
-    
-    # Generate classification report
-    report = classification_report(original_labels, original_preds, target_names=label_encoder.classes_)
-    print("\nClassification Report:")
-    print(report)
-
-    # Generate confusion matrix
-    cm = confusion_matrix(original_labels, original_preds)
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                xticklabels=label_encoder.classes_,
-                yticklabels=label_encoder.classes_)
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title('Confusion Matrix')
-    plt.savefig('confusion_matrix.png')
-    plt.close()
-    
-    return metrics_df, report
-
-def extract_dvectors(audio_segments, speechbrain_model):
-    """
-    Extract speaker embeddings (d-vectors) using pretrained SpeechBrain model
-    """
+def extract_dvectors(audio_segments, dvector_model):
     dvectors = []
     
     for segment in audio_segments:
         with torch.no_grad():
-            # Get embedding from speechbrain model
-            embedding = speechbrain_model.encode_batch(torch.tensor(segment).unsqueeze(0))
-            dvectors.append(embedding.squeeze().numpy())
+            embedding = dvector_model.encode_batch(torch.tensor(segment).unsqueeze(0))
+            dvectors.append(embedding.squeeze().cpu().numpy())
     
     return np.array(dvectors)
 
 def time_to_seconds(time_str):
-    """
-    Convert time string in format 'H:M:S' to seconds.
-    """
     h, m, s = map(int, time_str.split(':'))
     return h * 3600 + m * 60 + s
 
 def parse_script(script_file):
-    """
-    Parse the script file to get segments with labels.
-    Returns a list of (start_time, end_time, label) tuples.
-    """
     segments = []
     try:
         with open(script_file, 'r') as f:
@@ -217,21 +191,12 @@ def parse_script(script_file):
     return segments
 
 def extract_audio_segments(audio_file, script_file, segment_duration=SEGMENT_DURATION):
-    """
-    Extract audio segments from the audio file based on the script.
-    Returns a list of (audio_segment, label) tuples.
-    """
-    # Load audio file
     y, sr = librosa.load(audio_file, sr=SAMPLE_RATE)
-    print(f"Audio loaded: {len(y)/sr:.2f} seconds")
     
-    # Parse script
     segments = parse_script(script_file)
-    print(f"Script parsed: {len(segments)} segments found")
     
     dataset = []
     for start_time, end_time, label in segments:
-        # Convert time to samples
         start_sample = int(start_time * sr)
         end_sample = int(end_time * sr)
         
@@ -240,17 +205,14 @@ def extract_audio_segments(audio_file, script_file, segment_duration=SEGMENT_DUR
         if len(segment_audio) < 1:
             continue
         
-        # Split into smaller segments for uniform processing
         samples_per_segment = int(segment_duration * sr)
         
         for i in range(0, len(segment_audio), samples_per_segment):
             segment = segment_audio[i:i+samples_per_segment]
             
-            # Skip if segment is too short
             if len(segment) < samples_per_segment // 2:
                 continue
                 
-            # Pad or trim to ensure uniform length
             if len(segment) < samples_per_segment:
                 padded = np.zeros(samples_per_segment)
                 padded[:len(segment)] = segment
@@ -260,256 +222,206 @@ def extract_audio_segments(audio_file, script_file, segment_duration=SEGMENT_DUR
             
             dataset.append((segment, label))
     
-    print(f"Dataset created: {len(dataset)} samples")
     return dataset
 
-def train_speaker_recognition_system(audio_file, script_file):
-    """
-    Train the speaker recognition system using quantum neural network.
-    """
-    print("Loading SpeechBrain pretrained speaker recognition model...")
-    speechbrain_model = SpeakerRecognition.from_hparams(
+def train_speaker_recognition_system():
+    print("Loading SpeechBrain pretrained ECAPA-TDNN model...")
+    dvector_model = EncoderClassifier.from_hparams(
         source="speechbrain/spkrec-ecapa-voxceleb",
         savedir="pretrained_models/spkrec-ecapa-voxceleb"
     )
     
-    print("Extracting audio segments from audio and script...")
-    dataset = extract_audio_segments(audio_file, script_file)
+    train_voice_dir = "../../reserve"
     
-    if len(dataset) == 0:
-        raise ValueError("No valid samples found in the dataset. Check the audio file and script.")
+    speaker_segments = defaultdict(list)
+    all_segments = []
+    all_labels = []
     
-    # Extract audio segments and labels
-    audio_segments = [item[0] for item in dataset]
-    labels = [item[1] for item in dataset]
+    for meeting_dir in os.listdir(train_voice_dir):
+        meeting_path = os.path.join(train_voice_dir, meeting_dir)
+        
+        if not os.path.isdir(meeting_path):
+            continue
+            
+        audio_file = None
+        script_file = os.path.join(meeting_path, "script.txt")
+
+        for ext in ['.wav', '.WAV']:
+            if os.path.exists(os.path.join(meeting_path, f"raw{ext}")):
+                audio_file = os.path.join(meeting_path, f"raw{ext}")
+                break
+
+        if not audio_file or not os.path.exists(script_file):
+            print(f"Skipping {meeting_dir}: Missing audio or script file")
+            continue
+            
+        print(f"Processing {meeting_dir}...")
+        
+        dataset = extract_audio_segments(audio_file, script_file)
+        
+        for segment, label in dataset:
+            speaker_segments[label].append(segment)
+            all_segments.append(segment)
+            all_labels.append(label)
     
-    # Extract d-vectors using pretrained model
-    print("Extracting d-vectors using SpeechBrain model...")
-    dvectors = extract_dvectors(audio_segments, speechbrain_model)
+    print("Extracting D-Vectors using SpeechBrain ECAPA-TDNN model...")
+    dvectors = extract_dvectors(all_segments, dvector_model)
     
     label_encoder = LabelEncoder()
-    encoded_labels = label_encoder.fit_transform(labels)
+    encoded_labels = label_encoder.fit_transform(all_labels)
     n_classes = len(label_encoder.classes_)
     print(f"Found {n_classes} speaker classes: {label_encoder.classes_}")
     
-    # Convert to torch tensors
-    dvectors = torch.tensor(dvectors, dtype=torch.float32)
-    labels = torch.tensor(encoded_labels, dtype=torch.long)
+    speaker_dvectors = defaultdict(list)
+    speaker_encoded_labels = defaultdict(list)
+    speaker_indices = defaultdict(list)
     
-    # Split data for training
-    X_train, X_test, y_train, y_test = train_test_split(
-        dvectors, labels, test_size=0.2, random_state=42, stratify=labels
-    )
+    for i, (dvector, label) in enumerate(zip(dvectors, all_labels)):
+        speaker_dvectors[label].append(dvector)
+        speaker_encoded_labels[label].append(label_encoder.transform([label])[0])
+        speaker_indices[label].append(i)
     
-    # Create datasets and dataloaders
-    train_dataset = SpeakerDataset(X_train, y_train)
-    test_dataset = SpeakerDataset(X_test, y_test)
+    print("\nSegment counts per speaker:")
+    for speaker, segments in speaker_segments.items():
+        print(f"{speaker}: {len(segments)} segments")
     
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, drop_last=True)
+    kf = KFold(n_splits=N_FOLDS, shuffle=True, random_state=42)
     
-    # Get d-vector dimension
-    dvector_dim = dvectors.shape[1]
+    speaker_fold_indices = {}
+    for speaker in speaker_indices:
+        indices = np.array(speaker_indices[speaker])
+        speaker_fold_indices[speaker] = list(kf.split(indices))
     
-    # Initialize Quantum QCNN model
-    print(f"Initializing Quantum Speaker Recognition model...")
-    quantum_model = QDVectorModel(
-        n_qubits=N_QUBITS,
-        n_layers=N_LAYERS,
-        n_classes=n_classes,
-        dvector_dim=dvector_dim
-    )
+    fold_metrics = []
     
-    # Setup training
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(quantum_model.parameters(), lr=LEARNING_RATE)
+    dvectors_tensor = torch.tensor(dvectors, dtype=torch.float32)
+    labels_tensor = torch.tensor(encoded_labels, dtype=torch.long)
     
-    train_losses = []
-    test_accuracies = []
-    
-    # Training loop
-    print(f"Starting training for {EPOCHS} epochs...")
-    for epoch in range(EPOCHS):
-        quantum_model.train()
-        running_loss = 0.0
+    with open('DVector_QCNN.txt', 'w') as f:
+        f.write("DVector QCNN Speaker Recognition Results\n")
+        f.write("======================================\n\n")
         
-        for batch_features, batch_labels in train_loader:
-            optimizer.zero_grad()
+    for fold in range(N_FOLDS):
+        print(f"\n=== Training fold {fold+1}/{N_FOLDS} ===")
+        
+        train_indices = []
+        test_indices = []
+        
+        for speaker, fold_indices in speaker_fold_indices.items():
+            speaker_indices_array = np.array(speaker_indices[speaker])
             
-            outputs = quantum_model(batch_features)
-            loss = criterion(outputs, batch_labels)
+            if fold < len(fold_indices):
+                train_idx, test_idx = fold_indices[fold]
+                train_indices.extend(speaker_indices_array[train_idx])
+                test_indices.extend(speaker_indices_array[test_idx])
+        
+        X_train = dvectors_tensor[train_indices]
+        y_train = labels_tensor[train_indices]
+        X_test = dvectors_tensor[test_indices]
+        y_test = labels_tensor[test_indices]
+        
+        print(f"Training set size: {len(X_train)}, Test set size: {len(X_test)}")
+        
+        train_dataset = SpeakerDataset(X_train, y_train)
+        test_dataset = SpeakerDataset(X_test, y_test)
+        
+        train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
+        test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, drop_last=True)
+        
+        dvector_dim = dvectors_tensor.shape[1]  # Typically 192 for ECAPA-TDNN
+        
+        qcnn_model = QDVectorCNN(
+            n_qubits=N_QUBITS,
+            n_layers=N_LAYERS,
+            n_classes=n_classes,
+            dvector_dim=dvector_dim
+        ).to(device)
+        
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(qcnn_model.parameters(), lr=LEARNING_RATE)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
+        
+        for epoch in range(EPOCHS):
+            qcnn_model.train()
+            running_loss = 0.0
             
-            loss.backward()
-            optimizer.step()
+            for batch_idx, (batch_features, batch_labels) in enumerate(train_loader):
+                batch_features = batch_features.to(device)
+                batch_labels = batch_labels.to(device)
+                if batch_features.size(0) == 1:
+                    print("Skipping batch size 1")
+                    continue
+                
+                optimizer.zero_grad()
+                
+                outputs = qcnn_model(batch_features)
+                loss = criterion(outputs, batch_labels)
+                
+                loss.backward()
+                optimizer.step()
+                
+                running_loss += loss.item()
             
-            running_loss += loss.item()
-        
-        # Evaluation
-        quantum_model.eval()
-        correct = 0
-        total = 0
-        
-        with torch.no_grad():
-            for batch_features, batch_labels in test_loader:
-                outputs = quantum_model(batch_features)
-                _, predicted = torch.max(outputs.data, 1)
-                total += batch_labels.size(0)
-                correct += (predicted == batch_labels).sum().item()
-        
-        test_accuracy = 100 * correct / total
-        avg_loss = running_loss / len(train_loader)
-        train_losses.append(avg_loss)
-        test_accuracies.append(test_accuracy)
-        
-        print(f"Epoch {epoch + 1}/{EPOCHS}, Loss: {avg_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%")
-    
-    # Plot training progress
-    plt.figure(figsize=(12, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(range(1, EPOCHS + 1), train_losses)
-    plt.title('Training Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    
-    plt.subplot(1, 2, 2)
-    plt.plot(range(1, EPOCHS + 1), test_accuracies)
-    plt.title('Test Accuracy')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy (%)')
-    
-    plt.tight_layout()
-    plt.savefig('training_progress.png')
-    plt.close()
-    
-    # Final evaluation
-    print("\nFinal evaluation on test set:")
-    metrics_df, report = evaluate_model(quantum_model, test_loader, label_encoder)
-    
-    # Save metrics to CSV
-    metrics_df.to_csv('speaker_recognition_metrics.csv', index=False)
-    print("\nMetrics saved to speaker_recognition_metrics.csv")
-    
-    # Return models
-    return {
-        'quantum_model': quantum_model,
-        'speechbrain_model': speechbrain_model,
-        'label_encoder': label_encoder
-    }
-
-def predict_speaker(models, audio_file, segment_duration=1.0):
-    """
-    Predict speaker for each segment in an audio file using the quantum model.
-    """
-    # Unpack models
-    quantum_model = models['quantum_model']
-    speechbrain_model = models['speechbrain_model']
-    label_encoder = models['label_encoder']
-    
-    # Load audio
-    y, sr = librosa.load(audio_file, sr=SAMPLE_RATE)
-    
-    # Split into segments
-    samples_per_segment = int(segment_duration * sr)
-    
-    segments = []
-    times = []
-    audio_segments = []
-    
-    for i in range(0, len(y), samples_per_segment):
-        segment = y[i:i+samples_per_segment]
-        if len(segment) < samples_per_segment // 2:
-            continue
+            avg_loss = running_loss / len(train_loader) if len(train_loader) > 0 else 0
             
-        if len(segment) < samples_per_segment:
-            padded = np.zeros(samples_per_segment)
-            padded[:len(segment)] = segment
-            segment = padded
-        elif len(segment) > samples_per_segment:
-            segment = segment[:samples_per_segment]
+            qcnn_model.eval()
+            correct = 0
+            total = 0
+            
+            with torch.no_grad():
+                for batch_features, batch_labels in test_loader:
+                    batch_features = batch_features.to(device)
+                    batch_labels = batch_labels.to(device)
+                    
+                    outputs = qcnn_model(batch_features)
+                    _, predicted = torch.max(outputs.data, 1)
+                    total += batch_labels.size(0)
+                    correct += (predicted == batch_labels).sum().item()
+            
+            val_accuracy = 100 * correct / total if total > 0 else 0
+            
+            scheduler.step(avg_loss)
+            
+            print(f"Epoch {epoch + 1}/{EPOCHS}, Loss: {avg_loss:.4f}, Val Accuracy: {val_accuracy:.2f}%")
         
-        start_time = i / sr
-        end_time = min((i + samples_per_segment) / sr, len(y) / sr)
+        metrics = evaluate_model(qcnn_model, test_loader, label_encoder)
+        metrics['fold'] = fold + 1
+        fold_metrics.append(metrics)
         
-        segments.append((start_time, end_time))
-        times.append(f"{int(start_time // 60):02d}:{int(start_time % 60):02d}")
-        audio_segments.append(segment)
-    
-    # Extract d-vectors
-    dvectors = extract_dvectors(audio_segments, speechbrain_model)
-    
-    # Make quantum model predictions
-    quantum_model.eval()
-    predictions = []
-    
-    for dvector in dvectors:
-        dvector_tensor = torch.tensor(dvector, dtype=torch.float32).unsqueeze(0)
+        print(f"\nFold {fold+1} Results:")
+        print(f"Accuracy: {metrics['accuracy']:.4f}")
+        print(f"Precision (Macro): {metrics['precision_macro']:.4f}")
+        print(f"Recall (Macro): {metrics['recall_macro']:.4f}")
+        print(f"F1-Score (Macro): {metrics['f1_macro']:.4f}")
+        print(f"F1-Score (Weighted): {metrics['f1_weighted']:.4f}")
         
-        with torch.no_grad():
-            outputs = quantum_model(dvector_tensor)
-            _, predicted = torch.max(outputs.data, 1)
-            predicted_label = label_encoder.inverse_transform([predicted.item()])[0]
-            predictions.append(predicted_label)
+        torch.save(qcnn_model.state_dict(), f'qdvector_speaker_recognition_fold{fold+1}.pth')
+        
+        with open('DVector_QCNN.txt', 'a') as f:
+            f.write(f"Fold {metrics['fold']} Results:\n")
+            f.write(f"Accuracy: {metrics['accuracy']:.4f}\n")
+            f.write(f"Precision (Macro): {metrics['precision_macro']:.4f}\n")
+            f.write(f"Precision (Weighted): {metrics['precision_weighted']:.4f}\n")
+            f.write(f"Recall (Macro): {metrics['recall_macro']:.4f}\n")
+            f.write(f"Recall (Weighted): {metrics['recall_weighted']:.4f}\n")
+            f.write(f"F1-Score (Macro): {metrics['f1_macro']:.4f}\n")
+            f.write(f"F1-Score (Weighted): {metrics['f1_weighted']:.4f}\n\n")
     
-    # Create results dataframe
-    results = pd.DataFrame({
-        'Start Time': [f"{int(s[0] // 60):02d}:{int(s[0] % 60):02d}" for s in segments],
-        'End Time': [f"{int(s[1] // 60):02d}:{int(s[1] % 60):02d}" for s in segments],
-        'Speaker': predictions
-    })
+    with open('DVector_QCNN.txt', 'a') as f:
+        avg_accuracy = sum(m['accuracy'] for m in fold_metrics) / len(fold_metrics)
+        avg_precision = sum(m['precision_macro'] for m in fold_metrics) / len(fold_metrics)
+        avg_recall = sum(m['recall_macro'] for m in fold_metrics) / len(fold_metrics)
+        avg_f1_macro = sum(m['f1_macro'] for m in fold_metrics) / len(fold_metrics)
+        avg_f1_weighted = sum(m['f1_weighted'] for m in fold_metrics) / len(fold_metrics)
+        
+        f.write("Average Results Across All Folds:\n")
+        f.write(f"Accuracy: {avg_accuracy:.4f}\n")
+        f.write(f"Precision (Macro): {avg_precision:.4f}\n")
+        f.write(f"Recall (Macro): {avg_recall:.4f}\n")
+        f.write(f"F1-Score (Macro): {avg_f1_macro:.4f}\n")
+        f.write(f"F1-Score (Weighted): {avg_f1_weighted:.4f}\n")
     
-    return results
-
-def save_model(models, filename='quantum_speaker_recognition_model.pth'):
-    """Save the trained model to disk"""
-    torch.save({
-        'quantum_model_state': models['quantum_model'].state_dict(),
-        'label_encoder_classes': models['label_encoder'].classes_
-    }, filename)
-    
-    print(f"Model saved to {filename}")
-
-def load_model(filename='quantum_speaker_recognition_model.pth'):
-    """Load the trained model from disk"""
-    model_data = torch.load(filename)
-    
-    # Recreate label encoder
-    label_encoder = LabelEncoder()
-    label_encoder.classes_ = model_data['label_encoder_classes']
-    
-    # Load SpeechBrain model
-    speechbrain_model = SpeakerRecognition.from_hparams(
-        source="speechbrain/spkrec-ecapa-voxceleb",
-        savedir="pretrained_models/spkrec-ecapa-voxceleb"
-    )
-    
-    # Recreate quantum model
-    quantum_model = QDVectorModel(
-        n_qubits=N_QUBITS,
-        n_layers=N_LAYERS,
-        n_classes=len(label_encoder.classes_)
-    )
-    
-    quantum_model.load_state_dict(model_data['quantum_model_state'])
-    
-    print(f"Model loaded from {filename}")
-    
-    return {
-        'quantum_model': quantum_model,
-        'speechbrain_model': speechbrain_model,
-        'label_encoder': label_encoder
-    }
+    print("\nTraining complete! Results saved to DVector_QCNN.txt")
 
 if __name__ == "__main__":
-    audio_file = "train_data/gitlab_public_meeting/raw.wav"
-    script_file = "train_data/gitlab_public_meeting/script.txt"
-        
-    # Train the speaker recognition system
-    models = train_speaker_recognition_system(audio_file, script_file)
-    
-    # Save the trained model
-    save_model(models, 'quantum_speaker_recognition_model.pth')
-    
-    # Test prediction on the same file
-    results = predict_speaker(models, audio_file)
-    results.to_csv('speaker_predictions.csv', index=False)
-    print("\nPrediction results saved to speaker_predictions.csv")
+    train_speaker_recognition_system()
