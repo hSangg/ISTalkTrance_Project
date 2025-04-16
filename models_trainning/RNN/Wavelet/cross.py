@@ -92,7 +92,7 @@ def load_all_data(data_folder):
     return all_features, all_labels
 
 
-def train_rnn(train_features, train_labels, num_epochs=50, lr=0.001, hidden_size=64):
+def train_rnn(train_features, train_labels, num_epochs=20, lr=0.001, hidden_size=64):
     speakers = list(set(train_labels))
     speaker_to_idx = {s: i for i, s in enumerate(speakers)}
     labels = [speaker_to_idx[s] for s in train_labels]

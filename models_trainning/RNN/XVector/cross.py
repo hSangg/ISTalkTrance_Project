@@ -10,7 +10,7 @@ from speechbrain.inference.classifiers import EncoderClassifier
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
 
-TRAIN_ROOT = "test_voice"
+TRAIN_ROOT = "train_voice"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 32
 EPOCHS = 20
@@ -28,8 +28,24 @@ class XvectorDataset(Dataset):
 
     def __getitem__(self, idx):
         x = torch.tensor(self.xvectors[idx], dtype=torch.float32)
+        # Ensure x is a flat vector
+        if x.dim() > 1:
+            x = torch.mean(x, dim=0) if x.size(0) > 1 else x.reshape(-1)
         y = torch.tensor(self.label_to_idx[self.labels[idx]], dtype=torch.long)
         return x, y
+
+def custom_collate(batch):
+    """Custom collate function to handle tensors of different shapes."""
+    xs = []
+    ys = []
+    for x, y in batch:
+        # Ensure x is flat and consistent
+        if x.dim() > 1:
+            x = torch.mean(x, dim=0) if x.size(0) > 1 else x.reshape(-1)
+        xs.append(x)
+        ys.append(y)
+
+    return torch.stack(xs), torch.stack(ys)
 
 class RNNClassifier(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
@@ -88,8 +104,26 @@ def extract_xvectors(audio_path, segments, speakers, classifier):
 # ==== Training Logic ====
 def train_rnn_model(X, y, label_to_idx, input_size):
     num_classes = len(label_to_idx)
-    dataset = XvectorDataset(X, y, label_to_idx)
-    train_loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+
+    # Preprocess to ensure consistent shapes
+    standardized_X = []
+    for x in X:
+        if x.ndim == 2:
+            if x.shape[0] > 1:
+                standardized_X.append(np.mean(x, axis=0))
+            else:
+                standardized_X.append(x.reshape(-1))
+        else:
+            standardized_X.append(x)
+
+    dataset = XvectorDataset(standardized_X, y, label_to_idx)
+    train_loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=custom_collate)
+
+    # Update input size to match the standardized vectors
+    if standardized_X[0].ndim == 1:
+        input_size = standardized_X[0].shape[0]
+    else:
+        input_size = standardized_X[0].shape[1]
 
     model = RNNClassifier(input_size=input_size, hidden_size=128, num_classes=num_classes).to(DEVICE)
     criterion = nn.CrossEntropyLoss()
@@ -142,6 +176,8 @@ def run_rnn_pipeline():
         subfolder_path = os.path.join(TRAIN_ROOT, folder)
         audio_path = os.path.join(subfolder_path, "raw.WAV")
         script_path = os.path.join(subfolder_path, "script.txt")
+
+        print("🥺 at: ", audio_path)
 
         if not os.path.exists(audio_path) or not os.path.exists(script_path):
             continue
