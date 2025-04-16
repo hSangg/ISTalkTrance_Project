@@ -151,7 +151,7 @@ def train_rnn_model(features, labels, speakers):
     history = model.fit(
         X_train, y_train,
         validation_data=(X_test, y_test),
-        epochs=50,
+        epochs=20,
         batch_size=32
     )
 
