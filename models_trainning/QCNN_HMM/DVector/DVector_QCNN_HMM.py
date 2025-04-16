@@ -5,7 +5,7 @@ import json
 import torch
 import numpy as np
 import pennylane as qml
-from speechbrain.pretrained import EncoderClassifier
+from speechbrain.pretrained import SpeakerRecognition
 from hmmlearn import hmm
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn.model_selection import KFold, train_test_split
@@ -15,9 +15,12 @@ from datetime import datetime
 import librosa
 
 warnings.filterwarnings('ignore')
-
+if torch.cuda.is_available():
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+    torch.cuda.set_per_process_memory_fraction(0.7)
+    torch.backends.cudnn.benchmark = True
 class SpeakerIdentification:
-    def __init__(self, n_qubits=4, n_hmm_components=5, use_gpu=True):
+    def __init__(self, n_qubits=7, n_hmm_components=2, use_gpu=True):
         self.n_qubits = n_qubits
         self.n_hmm_components = n_hmm_components
         self.speakers = {}
@@ -32,7 +35,7 @@ class SpeakerIdentification:
             print("GPU not available, using CPU instead.")
         
         try:
-            self.dvector_model = EncoderClassifier.from_hparams(
+            self.dvector_model = SpeakerRecognition.from_hparams(
                 source="speechbrain/spkrec-ecapa-voxceleb", 
                 savedir="pretrained_models/spkrec-ecapa-voxceleb",
                 run_opts={"device": self.device}
@@ -96,7 +99,7 @@ class SpeakerIdentification:
         
         input_features = np.clip(input_features, -np.pi, np.pi)
         
-        q_output = self.qcnn(input_features, self.weights)
+        q_output = random_qcircuit(input_features, self.n_qubits)
         quantum_features.append(q_output)
         
         combined_features = np.concatenate([
@@ -172,7 +175,7 @@ class SpeakerIdentification:
             
             print(f"Training HMM for {speaker} with {features.shape} data points...")
             
-            model = hmm.GaussianHMM(n_components=self.n_hmm_components, 
+            model = hmm.GaussianHMM(n_components=min(1, len(features)), 
                                    covariance_type="diag", 
                                    n_iter=100, verbose=False)
             model.fit(features)
@@ -431,6 +434,20 @@ def cross_validate(base_folder, k=3, save_dir="crossval_models", log_file="cross
             f"Average F1-score: {avg_metrics[3]:.2f}"
         ]
         append_log(summary_lines)
+def random_qcircuit(inputs, num_qubits=4):
+    dev = qml.device("lightning.gpu", wires=num_qubits)
+
+    @qml.qnode(dev)
+    def circuit(inputs):
+        for i in range(num_qubits):
+            qml.Hadamard(wires=i)
+            qml.RY(np.random.uniform(-np.pi, np.pi), wires=i)
+        for i in range(num_qubits - 1):
+            qml.CNOT(wires=[i, i + 1])
+            qml.RY(np.random.uniform(-np.pi, np.pi), wires=i + 1)
+        return [qml.expval(qml.PauliZ(i)) for i in range(num_qubits)]
+
+    return circuit(inputs)
 
 def train_all_datasets(base_folder, use_gpu=True):
     si = SpeakerIdentification(use_gpu=use_gpu)
@@ -525,5 +542,5 @@ if __name__ == "__main__":
     else:
         print("No GPU detected, falling back to CPU")
     
-    train_voice_folder = "../../reserve"
+    train_voice_folder = "../train_voice"
     cross_validate(train_voice_folder, k=3, use_gpu=use_gpu)

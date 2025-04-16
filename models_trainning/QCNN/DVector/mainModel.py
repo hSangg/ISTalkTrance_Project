@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from sklearn.preprocessing import LabelEncoder
-from speechbrain.pretrained import EncoderClassifier
+from speechbrain.pretrained import SpeakerRecognition
 from torch.utils.data import Dataset, DataLoader
 import pennylane as qml
 from sklearn.model_selection import KFold

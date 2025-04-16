@@ -17,7 +17,7 @@ import librosa
 warnings.filterwarnings('ignore')
 
 class SpeakerIdentification:
-    def __init__(self, n_qubits=20, n_hmm_components=5, use_gpu=True):
+    def __init__(self, n_qubits=7, n_hmm_components=1, use_gpu=True):
         self.n_qubits = n_qubits
         self.n_hmm_components = n_hmm_components
         self.speakers = {}
@@ -99,7 +99,7 @@ class SpeakerIdentification:
         
         input_features = np.clip(input_features, -np.pi, np.pi)
         
-        q_output = self.qcnn(input_features, self.weights)
+        q_output = random_qcircuit(input_features, self.n_qubits)
         quantum_features.append(q_output)
         
         combined_features = np.concatenate([
@@ -132,17 +132,6 @@ class SpeakerIdentification:
         h, m, s = map(int, time_str.split(':'))
         return h * 3600 + m * 60 + s
 
-    def train_test_split(self):
-        train_data = {}
-        test_data = {}
-        
-        for speaker, segments in self.speakers.items():
-            if len(segments) > 1:
-                train_segments, test_segments = train_test_split(segments, test_size=0.2)
-                train_data[speaker] = train_segments
-                test_data[speaker] = test_segments
-        
-        return train_data, test_data
 
     def train(self, segments=None):
         train_data = segments if segments is not None else self.speakers
@@ -227,41 +216,21 @@ class SpeakerIdentification:
         predicted_speaker = max(scores.items(), key=lambda x: x[1])[0]
         return predicted_speaker, scores
     
-    def evaluate(self, audio_path):
-        total = 0
-        correct = 0
-        y_true = []
-        y_pred = []
-        
-        _, test_data = self.train_test_split()
-        
-        print("\nTest Results:")
-        print("Segment\tTrue Speaker\tPredicted Speaker")
-        print("-" * 50)
-        
-        for speaker, segments in test_data.items():
-            for start, end in segments:
-                predicted_speaker, _ = self.predict(audio_path, start, end)
-                print(f"{start}-{end}\t{speaker}\t{predicted_speaker}")
-                
-                y_true.append(speaker)
-                y_pred.append(predicted_speaker)
-                
-                if predicted_speaker == speaker:
-                    correct += 1
-                total += 1
-        
-        accuracy = correct / total if total > 0 else 0
-        print(f"\nEvaluation - Accuracy: {accuracy:.2%}")
-        
-        precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, average='macro')
-        
-        print(f"Precision: {precision:.2f}")
-        print(f"Recall: {recall:.2f}")
-        print(f"F1-Score (Macro-Averaged): {f1:.2f}")
-        
-        return precision, recall, f1
 
+def random_qcircuit(inputs, num_qubits=4):
+    dev = qml.device("lightning.gpu", wires=num_qubits)
+
+    @qml.qnode(dev)
+    def circuit(inputs):
+        for i in range(num_qubits):
+            qml.Hadamard(wires=i)
+            qml.RY(np.random.uniform(-np.pi, np.pi), wires=i)
+        for i in range(num_qubits - 1):
+            qml.CNOT(wires=[i, i + 1])
+            qml.RY(np.random.uniform(-np.pi, np.pi), wires=i + 1)
+        return [qml.expval(qml.PauliZ(i)) for i in range(num_qubits)]
+
+    return circuit(inputs)
 
 def save_model(si, save_dir="xvector_qcnn_hmm_models"):
     os.makedirs(save_dir, exist_ok=True)
@@ -280,51 +249,6 @@ def save_model(si, save_dir="xvector_qcnn_hmm_models"):
         json.dump(list(si.hmm_models.keys()), f)
     
     print(f"✅ Models saved in {save_dir}")
-
-def load_model(si, load_dir="xvector_qcnn_hmm_models"):
-    
-    if not os.path.exists(load_dir):
-        raise FileNotFoundError(f"Directory {load_dir} does not exist.")
-    
-    speakers_path = os.path.join(load_dir, "speakers.json")
-    
-    if not os.path.exists(speakers_path):
-        raise FileNotFoundError(f"File {speakers_path} not found.")
-    
-    with open(speakers_path, "r") as f:
-        try:
-            speakers = json.load(f)
-        except json.JSONDecodeError:
-            raise ValueError(f"Error decoding JSON from {speakers_path}.")
-    
-    if not speakers:
-        raise ValueError(f"No speakers found in {speakers_path}.")
-    
-    for speaker in speakers:
-        model_path = os.path.join(load_dir, f"{speaker}.pkl")
-        
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Model file for speaker {speaker} not found: {model_path}")
-        
-        with open(model_path, "rb") as f:
-            try:
-                si.hmm_models[speaker] = pickle.load(f)
-            except Exception as e:
-                raise RuntimeError(f"Failed to load HMM model for {speaker}: {e}")
-    
-    weights_path = os.path.join(load_dir, "qcnn_weights.pkl")
-    
-    if not os.path.exists(weights_path):
-        raise FileNotFoundError(f"QCNN weights file not found: {weights_path}")
-    
-    with open(weights_path, "rb") as f:
-        try:
-            si.weights = pickle.load(f)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load QCNN weights: {e}")
-    
-    print(f"✅ Models successfully loaded from {load_dir}")
-    return si
 
 def cross_validate(base_folder, k=3, save_dir="crossval_models", log_file="crossval_log.txt", use_gpu=True):
     os.makedirs(save_dir, exist_ok=True)
@@ -434,7 +358,7 @@ def cross_validate(base_folder, k=3, save_dir="crossval_models", log_file="cross
             f"Average F1-score: {avg_metrics[3]:.2f}"
         ]
         append_log(summary_lines)
-
+    
 if __name__ == "__main__":
     use_gpu = torch.cuda.is_available()
     if use_gpu:
@@ -443,5 +367,5 @@ if __name__ == "__main__":
     else:
         print("No GPU detected, falling back to CPU")
     
-    train_voice_folder = "../../reserve"
+    train_voice_folder = "../../train_voice"
     cross_validate(train_voice_folder, k=3, use_gpu=use_gpu)
