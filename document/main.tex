@@ -1,4 +1,4 @@
-\documentclass{article}
+\documentclass[conference]{IEEEtran}
 \usepackage{amsmath, amssymb, graphicx, cite}
 \usepackage[T5]{fontenc}
 \usepackage[utf8]{inputenc}
@@ -6,242 +6,276 @@
 \usepackage{amsmath}
 \usepackage{cite}
 
-\title{Lí thuyết IS-Talk-Trance và QCNN}
-\author{}
+\title{Xây Dựng Hệ Thống Nhận Dạng Giọng Nói Tự Động, Trích Xuất, Tóm Tắt Và Dịch Giọng Nói Theo Thời Gian Thực Qua Sự Kết Hợp Các Mô Hình Học Máy, Học Sâu}
+
+\author{
+    \IEEEauthorblockN{Cao Hoài Sang}
+    \IEEEauthorblockA{
+        Khoa Hệ Thống Thông Tin \\
+        Đại Học Công Nghệ Thông Tin - ĐHQG TP.HCM \\
+        Hồ Chí Minh, Việt Nam \\
+        21522541@gm.uit.edu.vn
+    }
+    \and
+    \IEEEauthorblockN{Trần Thị B}
+    \IEEEauthorblockA{
+        Khoa Khoa học Máy tính \\
+        Đại học Quốc gia TP.HCM \\
+        TP. Hồ Chí Minh, Việt Nam \\
+        emailb@example.com
+    }
+}
+
 \date{}
 
 \begin{document}
 
 \maketitle
 
-\section{Trích Xuất MFCC}
-Quy trình trích xuất MFCC bao gồm nhiều bước tiền xử lý để chuyển đổi tín hiệu giọng nói từ miền thời gian sang miền tần số và sau đó trích xuất các đặc trưng cepstral.
+\begin{abstract}
+    Trong thời đại giao tiếp số và làm việc từ xa, nhu cầu xử lý hội thoại theo thời gian thực trở nên ngày càng quan trọng. Nghiên cứu này đề xuất một hệ thống tích hợp có khả năng tách giọng nói, nhận diện người nói, tóm tắt nội dung theo từng cá nhân và dịch giọng nói thời gian thực, trong khi vẫn bảo toàn đặc trưng giọng nói ban đầu. Phương pháp tiếp cận kết hợp các đặc trưng âm học như MFCC, XVector và DVector cùng các mô hình học sâu hiện đại như RNN, GMM và Transformer. Hệ thống được huấn luyện và kiểm thử trên tập dữ liệu hội thoại thực tế đã gán nhãn. Kết quả cho thấy hệ thống đạt độ chính xác cao trong việc phân biệt người nói và tóm tắt nội dung, đồng thời đảm bảo độ trễ thấp phù hợp với ứng dụng thời gian thực.
+\end{abstract}
 
-\subsection{Giới thiệu}
-Mel-Frequency Cepstral Coefficients (MFCC) là một trong những phương pháp phổ biến nhất để trích xuất đặc trưng giọng nói trong các hệ thống nhận dạng giọng nói tự động (ASR). MFCC mô phỏng cách con người cảm nhận âm thanh bằng cách áp dụng thang đo Mel, giúp làm nổi bật các đặc trưng quan trọng trong tín hiệu giọng nói \cite{davis1980comparison}.
+\begin{IEEEkeywords}
+    Automatic Speech Recognition, Hidden Markov Model, RNN,
+\end{IEEEkeywords}
 
-\subsection{Các Bước Trích Xuất MFCC}
-\subsubsection{Chuyển đổi A/D}
-Tín hiệu giọng nói ban đầu là một tín hiệu tương tự và cần được chuyển đổi sang dạng số bằng cách lấy mẫu (sampling) và lượng tử hóa (quantization) \cite{oppenheim1999discrete}.
 
-\subsubsection{Tiền xử lý (Pre-emphasis)}
-Tín hiệu đầu vào được lọc qua bộ lọc high-pass để nhấn mạnh các tần số cao, giúp cân bằng phổ và giảm tác động của tiếng ồn nền.
 
-\subsubsection{Cửa sổ (Windowing)}
-Cửa sổ Hamming hoặc Hanning được áp dụng để giảm hiệu ứng rò rỉ phổ (spectral leakage) trước khi thực hiện phân tích tần số.
+\section{Introduction}
+Trong bối cảnh các cuộc họp và tương tác trực tuyến ngày càng phổ biến, nhu cầu xử lý và phân tích giọng nói theo thời gian thực trở nên cấp thiết. Các hệ thống nhận dạng giọng nói hiện tại chủ yếu tập trung vào chuyển đổi lời nói thành văn bản, nhưng chưa hỗ trợ đầy đủ các chức năng nâng cao như phân biệt người nói, tóm tắt nội dung theo từng người, và dịch ngôn ngữ theo thời gian thực.
 
-\subsubsection{Biến đổi Fourier (DFT)}
-Biến đổi Fourier rời rạc (DFT) được sử dụng để chuyển tín hiệu từ miền thời gian sang miền tần số, giúp trích xuất thông tin phổ \cite{rabiner1993fundamentals}.
+Đề tài hướng đến việc xây dựng một hệ thống xử lý giọng nói thời gian thực tích hợp đa chức năng: nhận diện người nói, phân tích và tóm tắt hội thoại theo từng cá nhân, đồng thời dịch giọng nói sang ngôn ngữ khác mà vẫn bảo toàn đặc trưng giọng nói ban đầu. Hệ thống sẽ ứng dụng các mô hình học sâu hiện đại kết hợp các đặc trưng âm học để đạt hiệu quả cao.
 
-\subsubsection{Bộ lọc Mel (Mel Filterbank)}
-Dải tần số được ánh xạ sang thang đo Mel, giúp mô phỏng cách con người nhận thức âm thanh với độ phân giải cao hơn ở tần số thấp.
 
-\subsubsection{Biến đổi Log}
-Áp dụng hàm logarit lên phổ Mel để nén dải động và làm cho phổ có đặc tính gần hơn với cách tai người cảm nhận âm thanh.
+% \section{Trích Xuất MFCC}
+% Quy trình trích xuất MFCC bao gồm nhiều bước tiền xử lý để chuyển đổi tín hiệu giọng nói từ miền thời gian sang miền tần số và sau đó trích xuất các đặc trưng cepstral.
 
-\subsubsection{Biến đổi nghịch IDFT (Cepstral Analysis)}
-DCT (Discrete Cosine Transform) được sử dụng để chuyển phổ log-Mel về miền cepstral, giúp giảm mối tương quan giữa các đặc trưng.
+% \subsection{Giới thiệu}
+% Mel-Frequency Cepstral Coefficients (MFCC) là một trong những phương pháp phổ biến nhất để trích xuất đặc trưng giọng nói trong các hệ thống nhận dạng giọng nói tự động (ASR). MFCC mô phỏng cách con người cảm nhận âm thanh bằng cách áp dụng thang đo Mel, giúp làm nổi bật các đặc trưng quan trọng trong tín hiệu giọng nói \cite{davis1980comparison}.
 
-\subsubsection{Trích Xuất Đặc Trưng Động}
-Tính đạo hàm bậc nhất ($\Delta$) và bậc hai ($\Delta^2$) của MFCC để mô tả sự thay đổi của đặc trưng theo thời gian, làm tăng độ chính xác của hệ thống nhận dạng giọng nói.
+% \subsection{Các Bước Trích Xuất MFCC}
+% \subsubsection{Chuyển đổi A/D}
+% Tín hiệu giọng nói ban đầu là một tín hiệu tương tự và cần được chuyển đổi sang dạng số bằng cách lấy mẫu (sampling) và lượng tử hóa (quantization) \cite{oppenheim1999discrete}.
 
-% X-VECTOR
-\section{Tổng Quan về X-Vector}
+% \subsubsection{Tiền xử lý (Pre-emphasis)}
+% Tín hiệu đầu vào được lọc qua bộ lọc high-pass để nhấn mạnh các tần số cao, giúp cân bằng phổ và giảm tác động của tiếng ồn nền.
 
-X-Vector được giới thiệu bởi Snyder et al. (2018) như một phương pháp dựa trên mạng nơ-ron sâu để trích xuất đặc trưng giọng nói.
-Mô hình này bao gồm một mạng nơ-ron sâu (DNN) được huấn luyện để học biểu diễn đặc trưng từ các đoạn âm thanh với độ dài khác nhau.
+% \subsubsection{Cửa sổ (Windowing)}
+% Cửa sổ Hamming hoặc Hanning được áp dụng để giảm hiệu ứng rò rỉ phổ (spectral leakage) trước khi thực hiện phân tích tần số.
 
-\subsection{Kiến Trúc X-Vector}
+% \subsubsection{Biến đổi Fourier (DFT)}
+% Biến đổi Fourier rời rạc (DFT) được sử dụng để chuyển tín hiệu từ miền thời gian sang miền tần số, giúp trích xuất thông tin phổ \cite{rabiner1993fundamentals}.
 
-Mô hình X-Vector được xây dựng dựa trên một mạng DNN có cấu trúc chính gồm các thành phần:
+% \subsubsection{Bộ lọc Mel (Mel Filterbank)}
+% Dải tần số được ánh xạ sang thang đo Mel, giúp mô phỏng cách con người nhận thức âm thanh với độ phân giải cao hơn ở tần số thấp.
 
-\begin{itemize}
-    \item \textbf{Layer tiền xử lý}: Biến đổi đầu vào bằng các bộ lọc để tạo ra biểu diễn đặc trưng cục bộ.
-    \item \textbf{Layer frame-level}: Một chuỗi các lớp CNN hoặc TDNN (Time Delay Neural Network) trích xuất đặc trưng từ từng khung âm thanh.
-    \item \textbf{Layer thống kê}: Tổng hợp thông tin từ toàn bộ đoạn giọng nói để tạo ra một biểu diễn cố định.
-    \item \textbf{Layer speaker embedding}: Mã hóa thông tin giọng nói dưới dạng vector X-Vector có kích thước cố định.
-\end{itemize}
+% \subsubsection{Biến đổi Log}
+% Áp dụng hàm logarit lên phổ Mel để nén dải động và làm cho phổ có đặc tính gần hơn với cách tai người cảm nhận âm thanh.
 
-\subsection{Quy Trình Huấn Luyện}
+% \subsubsection{Biến đổi nghịch IDFT (Cepstral Analysis)}
+% DCT (Discrete Cosine Transform) được sử dụng để chuyển phổ log-Mel về miền cepstral, giúp giảm mối tương quan giữa các đặc trưng.
 
-Mô hình X-Vector được huấn luyện trên dữ liệu giọng nói lớn, sử dụng chức năng mất mát softmax để phân loại người nói.
-Sau khi huấn luyện, các vector đặc trưng được rút trích từ lớp embedding để sử dụng trong các tác vụ khác nhau.
+% \subsubsection{Trích Xuất Đặc Trưng Động}
+% Tính đạo hàm bậc nhất ($\Delta$) và bậc hai ($\Delta^2$) của MFCC để mô tả sự thay đổi của đặc trưng theo thời gian, làm tăng độ chính xác của hệ thống nhận dạng giọng nói.
 
-\section{Tổng Quan về D-Vector}
-\subsection{Giới thiệu}
-Trong các hệ thống nhận dạng tiếng nói tự động (ASR) và nhận dạng người nói, việc trích xuất đặc trưng hiệu quả đóng vai trò quan trọng trong việc tối ưu hóa độ chính xác của mô hình. Các phương pháp truyền thống như Mel-Frequency Cepstral Coefficients (MFCC) hay i-Vector đã được sử dụng rộng rãi trong nhiều năm \cite{dehak2011front}, \cite{davis1980comparison}. Tuy nhiên, với sự phát triển mạnh mẽ của học sâu, các phương pháp mới như X-Vector đã được đề xuất và chứng minh hiệu quả vượt trội trong việc biểu diễn đặc trưng giọng nói \\cite{snyder2018x}.
+% % X-VECTOR
+% \section{Tổng Quan về X-Vector}
 
-\subsection{Cơ sở lý thuyết của X-Vector}
+% X-Vector được giới thiệu bởi Snyder et al. (2018) như một phương pháp dựa trên mạng nơ-ron sâu để trích xuất đặc trưng giọng nói.
+% Mô hình này bao gồm một mạng nơ-ron sâu (DNN) được huấn luyện để học biểu diễn đặc trưng từ các đoạn âm thanh với độ dài khác nhau.
 
-X-Vector là một biểu diễn đặc trưng được trích xuất từ mạng nơ-ron sâu, thường dựa trên mô hình mạng tích chập (CNN) hoặc mạng truy hồi (RNN). Phương pháp này sử dụng một mô hình học sâu để chuyển đổi các đoạn âm thanh có độ dài thay đổi thành một vector đặc trưng có độ dài cố định. Điều này giúp hệ thống có thể nhận dạng người nói hoặc phân loại nội dung âm thanh một cách hiệu quả hơn.
+% \subsection{Kiến Trúc X-Vector}
 
-\subsubsection{Kiến trúc mạng nơ-ron của X-Vector}
+% Mô hình X-Vector được xây dựng dựa trên một mạng DNN có cấu trúc chính gồm các thành phần:
 
-Mô hình X-Vector thường được huấn luyện theo cấu trúc sau:
+% \begin{itemize}
+%     \item \textbf{Layer tiền xử lý}: Biến đổi đầu vào bằng các bộ lọc để tạo ra biểu diễn đặc trưng cục bộ.
+%     \item \textbf{Layer frame-level}: Một chuỗi các lớp CNN hoặc TDNN (Time Delay Neural Network) trích xuất đặc trưng từ từng khung âm thanh.
+%     \item \textbf{Layer thống kê}: Tổng hợp thông tin từ toàn bộ đoạn giọng nói để tạo ra một biểu diễn cố định.
+%     \item \textbf{Layer speaker embedding}: Mã hóa thông tin giọng nói dưới dạng vector X-Vector có kích thước cố định.
+% \end{itemize}
 
-\begin{itemize}
-    \item \textbf{Lớp đầu vào}: Nhận các khung âm thanh đã được xử lý trước, chẳng hạn như MFCC hoặc filterbank features.
-    \item \textbf{Lớp ẩn}: Bao gồm nhiều lớp tích chập hoặc truy hồi để trích xuất đặc trưng từ tín hiệu giọng nói.
-    \item \textbf{Lớp thống kê}: Tóm tắt thông tin từ toàn bộ chuỗi thời gian bằng cách tính trung bình và phương sai.
-    \item \textbf{Lớp đầu ra}: Tạo ra X-Vector có độ dài cố định, có thể được sử dụng để nhận dạng hoặc phân loại.
-\end{itemize}
+% \subsection{Quy Trình Huấn Luyện}
 
-\subsubsection{Quy trình trích xuất X-Vector}
+% Mô hình X-Vector được huấn luyện trên dữ liệu giọng nói lớn, sử dụng chức năng mất mát softmax để phân loại người nói.
+% Sau khi huấn luyện, các vector đặc trưng được rút trích từ lớp embedding để sử dụng trong các tác vụ khác nhau.
 
-Quy trình trích xuất X-Vector gồm các bước sau:
+% \section{Tổng Quan về D-Vector}
+% \subsection{Giới thiệu}
+% Trong các hệ thống nhận dạng tiếng nói tự động (ASR) và nhận dạng người nói, việc trích xuất đặc trưng hiệu quả đóng vai trò quan trọng trong việc tối ưu hóa độ chính xác của mô hình. Các phương pháp truyền thống như Mel-Frequency Cepstral Coefficients (MFCC) hay i-Vector đã được sử dụng rộng rãi trong nhiều năm \cite{dehak2011front}, \cite{davis1980comparison}. Tuy nhiên, với sự phát triển mạnh mẽ của học sâu, các phương pháp mới như X-Vector đã được đề xuất và chứng minh hiệu quả vượt trội trong việc biểu diễn đặc trưng giọng nói \\cite{snyder2018x}.
 
-\begin{enumerate}
-    \item \textbf{Tiền xử lý dữ liệu}: Âm thanh đầu vào được chia thành các khung nhỏ, áp dụng kỹ thuật cửa sổ Hamming và trích xuất các đặc trưng cơ bản như MFCC.
-    \item \textbf{Huấn luyện mạng nơ-ron}: Dữ liệu đầu vào được đưa vào mạng nơ-ron sâu để học các đặc trưng giọng nói quan trọng.
-    \item \textbf{Tóm tắt thống kê}: Các lớp tổng hợp dữ liệu sẽ tính toán trung bình và phương sai của các đặc trưng, tạo thành một biểu diễn cố định.
-    \item \textbf{Tạo X-Vector}: Đầu ra của lớp ẩn cuối cùng được lấy làm vector đặc trưng đại diện cho đoạn giọng nói.
-\end{enumerate}
+% \subsection{Cơ sở lý thuyết của X-Vector}
 
+% X-Vector là một biểu diễn đặc trưng được trích xuất từ mạng nơ-ron sâu, thường dựa trên mô hình mạng tích chập (CNN) hoặc mạng truy hồi (RNN). Phương pháp này sử dụng một mô hình học sâu để chuyển đổi các đoạn âm thanh có độ dài thay đổi thành một vector đặc trưng có độ dài cố định. Điều này giúp hệ thống có thể nhận dạng người nói hoặc phân loại nội dung âm thanh một cách hiệu quả hơn.
 
-\subsubsection{Quy trình trích xuất X-Vector}
+% \subsubsection{Kiến trúc mạng nơ-ron của X-Vector}
 
-Quy trình trích xuất X-Vector gồm các bước sau:
+% Mô hình X-Vector thường được huấn luyện theo cấu trúc sau:
 
-\begin{enumerate}
-    \item \textbf{Tiền xử lý dữ liệu}: Âm thanh đầu vào được chia thành các khung nhỏ, áp dụng kỹ thuật cửa sổ Hamming và trích xuất các đặc trưng cơ bản như MFCC.
-    \item \textbf{Huấn luyện mạng nơ-ron}: Dữ liệu đầu vào được đưa vào mạng nơ-ron sâu để học các đặc trưng giọng nói quan trọng.
-    \item \textbf{Tóm tắt thống kê}: Các lớp tổng hợp dữ liệu sẽ tính toán trung bình và phương sai của các đặc trưng, tạo thành một biểu diễn cố định.
-    \item \textbf{Tạo X-Vector}: Đầu ra của lớp ẩn cuối cùng được lấy làm vector đặc trưng đại diện cho đoạn giọng nói.
-\end{enumerate}
+% \begin{itemize}
+%     \item \textbf{Lớp đầu vào}: Nhận các khung âm thanh đã được xử lý trước, chẳng hạn như MFCC hoặc filterbank features.
+%     \item \textbf{Lớp ẩn}: Bao gồm nhiều lớp tích chập hoặc truy hồi để trích xuất đặc trưng từ tín hiệu giọng nói.
+%     \item \textbf{Lớp thống kê}: Tóm tắt thông tin từ toàn bộ chuỗi thời gian bằng cách tính trung bình và phương sai.
+%     \item \textbf{Lớp đầu ra}: Tạo ra X-Vector có độ dài cố định, có thể được sử dụng để nhận dạng hoặc phân loại.
+% \end{itemize}
 
+% \subsubsection{Quy trình trích xuất X-Vector}
 
+% Quy trình trích xuất X-Vector gồm các bước sau:
 
+% \begin{enumerate}
+%     \item \textbf{Tiền xử lý dữ liệu}: Âm thanh đầu vào được chia thành các khung nhỏ, áp dụng kỹ thuật cửa sổ Hamming và trích xuất các đặc trưng cơ bản như MFCC.
+%     \item \textbf{Huấn luyện mạng nơ-ron}: Dữ liệu đầu vào được đưa vào mạng nơ-ron sâu để học các đặc trưng giọng nói quan trọng.
+%     \item \textbf{Tóm tắt thống kê}: Các lớp tổng hợp dữ liệu sẽ tính toán trung bình và phương sai của các đặc trưng, tạo thành một biểu diễn cố định.
+%     \item \textbf{Tạo X-Vector}: Đầu ra của lớp ẩn cuối cùng được lấy làm vector đặc trưng đại diện cho đoạn giọng nói.
+% \end{enumerate}
 
-\subsection{Biến đổi Wavelet và ứng dụng trong trích xuất đặc trưng ASR}
 
-Biến đổi Wavelet là một công cụ mạnh mẽ trong xử lý tín hiệu, đặc biệt hữu ích trong việc phân tích các tín hiệu không ổn định hoặc có đặc tính thay đổi theo thời gian. Khác với biến đổi Fourier, biến đổi Wavelet cung cấp cả thông tin về tần số và thời gian, giúp phân tích chi tiết hơn về cấu trúc của tín hiệu.
-
-\subsubsection{Biến đổi Wavelet liên tục (CWT)}
+% \subsubsection{Quy trình trích xuất X-Vector}
 
-Biến đổi Wavelet liên tục của một tín hiệu $x(t)$ được định nghĩa bởi:
-
-\begin{equation}
-    W(a, b) = \int_{-\infty}^{\infty} x(t) \frac{1}{\sqrt{|a|}} \psi\left(\frac{t - b}{a}\right) dt
-\end{equation}
+% Quy trình trích xuất X-Vector gồm các bước sau:
 
-Trong đó, $a$ là hệ số tỉ lệ (scale), $b$ là hệ số dịch (translation), và $\psi(t)$ là hàm Wavelet cơ sở (mother wavelet). Hàm $\psi(t)$ phải thỏa mãn điều kiện:
+% \begin{enumerate}
+%     \item \textbf{Tiền xử lý dữ liệu}: Âm thanh đầu vào được chia thành các khung nhỏ, áp dụng kỹ thuật cửa sổ Hamming và trích xuất các đặc trưng cơ bản như MFCC.
+%     \item \textbf{Huấn luyện mạng nơ-ron}: Dữ liệu đầu vào được đưa vào mạng nơ-ron sâu để học các đặc trưng giọng nói quan trọng.
+%     \item \textbf{Tóm tắt thống kê}: Các lớp tổng hợp dữ liệu sẽ tính toán trung bình và phương sai của các đặc trưng, tạo thành một biểu diễn cố định.
+%     \item \textbf{Tạo X-Vector}: Đầu ra của lớp ẩn cuối cùng được lấy làm vector đặc trưng đại diện cho đoạn giọng nói.
+% \end{enumerate}
 
-\begin{equation}
-    \int_{-\infty}^{\infty} \psi(t) dt = 0
-\end{equation}
-
-\subsubsection{Biến đổi Wavelet rời rạc (DWT)}
-
-Biến đổi Wavelet rời rạc được thực hiện bằng cách lấy mẫu các hệ số $a$ và $b$ theo lũy thừa của 2:
-
-\begin{equation}
-    a = 2^j, \quad b = k \cdot 2^j
-\end{equation}
-
-Với $j, k \in \mathbb{Z}$. Khi đó, DWT được biểu diễn dưới dạng:
-
-\begin{equation}
-    W(j, k) = \int_{-\infty}^{\infty} x(t) \frac{1}{\sqrt{2^j}} \psi\left(\frac{t - k \cdot 2^j}{2^j}\right) dt
-\end{equation}
-
-\subsubsection{Ứng dụng trong trích xuất đặc trưng cho ASR}
-
-Trong hệ thống nhận dạng tiếng nói tự động (ASR), việc trích xuất đặc trưng hiệu quả là một bước quan trọng để cải thiện hiệu suất nhận dạng, đặc biệt trong môi trường có nhiễu. Biến đổi Wavelet được sử dụng để giảm nhiễu và trích xuất các đặc trưng quan trọng từ tín hiệu tiếng nói.
-
-Một phương pháp giảm nhiễu dựa trên hàm nén Wavelet thống kê trong miền cảm quan (Perceptual Wavelet Transform) đã được đề xuất. Bằng cách tích hợp thuật toán giảm nhiễu này vào tầng tiền xử lý của hệ thống ASR, hiệu suất nhận dạng được cải thiện đáng kể trong môi trường nhiễu \cite{pham2010}.
-
-
-\section{Mạng Tích Chập Lượng Tử (QCNN)}
-
-Mạng tích chập lượng tử (Quantum Convolutional Neural Network - QCNN) là một phiên bản lượng tử của mạng tích chập (CNN), được thiết kế để xử lý dữ liệu trong môi trường lượng tử. QCNN bao gồm các thành phần chính sau:
-
-\begin{itemize}
-    \item \textbf{Lớp tích chập lượng tử (Quantum Convolution Layer)}: Trích xuất đặc trưng từ trạng thái lượng tử đầu vào bằng cách áp dụng các cổng lượng tử như cổng Hadamard, cổng Pauli, hoặc cổng kiểm soát (CNOT). Phép tích chập lượng tử được biểu diễn bởi một ma trận unitary $U_{\text{conv}}$:
-          \begin{equation}
-              U_{\text{conv}} | \psi \rangle = | \phi \rangle
-          \end{equation}
-          trong đó $|\psi\rangle$ là trạng thái đầu vào và $|\phi\rangle$ là trạng thái sau tích chập.
-
-    \item \textbf{Lớp gộp lượng tử (Quantum Pooling Layer)}: Giúp giảm số lượng qubit, tương tự như max pooling hoặc average pooling trong CNN. Phép gộp lượng tử sử dụng phép đo qubit hoặc các cổng kiểm soát để loại bỏ thông tin không quan trọng.
-
-    \item \textbf{Lớp kết nối đầy đủ lượng tử (Quantum Fully Connected Layer)}: Kết hợp các đặc trưng đã trích xuất để tạo ra đầu ra cuối cùng. Nó được biểu diễn bởi một ma trận unitary $U_{\text{fc}}$:
-          \begin{equation}
-              U_{\text{fc}} | \psi \rangle = | \psi_{\text{out}} \rangle
-          \end{equation}
-
-    \item \textbf{Phép đo lượng tử (Measurement)}: Sau khi xử lý qua các lớp lượng tử, trạng thái lượng tử được chuyển về dữ liệu cổ điển thông qua phép đo xác suất trạng thái:
-          \begin{equation}
-              P(i) = | \langle i | \psi_{\text{out}} \rangle |^2
-          \end{equation}
-\end{itemize}
-
-\section{Hidden Markov Model}
-HMM là một mô hình xác suất dùng để mô tả một chuỗi các quan sát $O = \{o_1, o_2, ..., o_T\}$ thông qua một tập hợp trạng thái ẩn $Q = \{q_1, q_2, ..., q_N\}$.
-
-Một HMM được định nghĩa bởi ba tham số chính:
-\begin{itemize}
-    \item $A = [a_{ij}]$: Ma trận xác suất chuyển trạng thái, trong đó $a_{ij} = P(q_{t+1} = j \mid q_t = i)$.
-    \item $B = [b_j(o_t)]$: Xác suất quan sát (output probability), trong đó $b_j(o_t) = P(o_t \mid q_t = j)$.
-    \item $\pi = [\pi_i]$: Xác suất ban đầu của trạng thái, $\pi_i = P(q_1 = i)$.
-\end{itemize}
-
-\subsection{Mô hình HMM cho Nhận dạng Giọng Nói}
-Trong ASR, mỗi từ hoặc âm vị có thể được mô hình hóa bằng một HMM riêng lẻ. Khi một chuỗi tín hiệu giọng nói được đưa vào, mục tiêu là tìm ra chuỗi trạng thái $Q^*$ sao cho xác suất quan sát tối đa:
-\begin{equation}
-    Q^* = \arg\max_Q P(O \mid Q, \lambda)
-\end{equation}
-trong đó $\lambda = (A, B, \pi)$ là tham số của HMM.
-
-\subsection{Các thuật toán chính}
-\subsubsection{Thuật toán Viterbi}
-Viterbi là thuật toán quan trọng để tìm chuỗi trạng thái tối ưu nhất dựa trên mô hình HMM. Xác suất tối đa cho trạng thái $j$ tại thời điểm $t$ được tính như sau:
-\begin{equation}
-    \delta_t(j) = \max_i \left[ \delta_{t-1}(i) a_{ij} \right] b_j(o_t)
-\end{equation}
-\subsubsection{Thuật toán Baum-Welch}
-Để huấn luyện HMM, thuật toán Baum-Welch (một biến thể của Expectation-Maximization) được sử dụng để ước lượng tham số:
-\begin{equation}
-    a_{ij} = \frac{\sum_{t=1}^{T-1} P(q_t = i, q_{t+1} = j \mid O, \lambda)}{\sum_{t=1}^{T-1} P(q_t = i \mid O, \lambda)}
-\end{equation}
-
-\section{Mạng Nơ-ron LSTM và X-vector trong Nhận Dạng Giọng Nói}
-LSTM là một biến thể của mạng nơ-ron truy hồi (RNN) giúp khắc phục vấn đề vanishing gradient trong mô hình hóa chuỗi thời gian dài. Công thức cập nhật trạng thái trong LSTM được biểu diễn như sau:
-\begin{align}
-    f_t         & = \sigma(W_f x_t + U_f h_{t-1} + b_f)       \\
-    i_t         & = \sigma(W_i x_t + U_i h_{t-1} + b_i)       \\
-    \tilde{C}_t & = \tanh(W_c x_t + U_c h_{t-1} + b_c)        \\
-    C_t         & = f_t \odot C_{t-1} + i_t \odot \tilde{C}_t \\
-    o_t         & = \sigma(W_o x_t + U_o h_{t-1} + b_o)       \\
-    h_t         & = o_t \odot \tanh(C_t)
-\end{align}
-Trong đó, $f_t, i_t, o_t$ lần lượt là cổng quên, cổng nhập và cổng đầu ra; $C_t$ là trạng thái bộ nhớ; $h_t$ là trạng thái ẩn.
-
-X-vector là phương pháp trích xuất đặc trưng sử dụng mạng DNN/LSTM để mô hình hóa giọng nói \cite{Snyder2018}. Nó bao gồm các lớp FC (Fully Connected) để tạo đặc trưng biểu diễn giọng nói từ cửa sổ tín hiệu âm thanh:
-\begin{equation}
-    x = \text{FC}_4(\text{FC}_3(\text{FC}_2(\text{FC}_1(O))))
-\end{equation}
-Trong đó, $O$ là chuỗi quan sát, và các lớp FC giúp trích xuất đặc trưng có độ phân biệt cao.
-
-
-\begin{thebibliography}{9}
-    \bibitem{dehak2011front} N. Dehak, P. J. Kenny, R. Dehak, P. Dumouchel, and P. Ouellet, "Front-end factor analysis for speaker verification," \textit{IEEE Transactions on Audio, Speech, and Language Processing}, vol. 19, no. 4, pp. 788-798, 2011.
-    \bibitem{snyder2018x} D. Snyder, D. Garcia-Romero, G. Sell, D. Povey, and S. Khudanpur, "X-Vectors: Robust DNN Embeddings for Speaker Recognition," in \textit{Proceedings of IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)}, 2018, pp. 5329-5333.
-    \bibitem{Snyder2018} D. Snyder, D. Garcia-Romero, G. Sell, D. Povey, and S. Khudanpur, "X-vectors: Robust DNN embeddings for speaker recognition," \textit{ICASSP}, pp. 5329-5333, 2018.
-    \bibitem{Davis1980} S. B. Davis and P. Mermelstein, \textquotedblleft Comparison of parametric representations for monosyllabic word recognition in continuously spoken sentences,\textquotedblright \emph{IEEE Transactions on Acoustics, Speech, and Signal Processing}, vol. 28, no. 4, pp. 357–366, 1980.
-    \bibitem{davis1980comparison} S. B. Davis and P. Mermelstein, ``Comparison of parametric representations for monosyllabic word recognition in continuously spoken sentences,'' \emph{IEEE Transactions on Acoustics, Speech, and Signal Processing}, vol. 28, no. 4, pp. 357–366, 1980.
-    \bibitem{oppenheim1999discrete} A. V. Oppenheim and R. W. Schafer, \emph{Discrete-time signal processing}, Prentice Hall, 1999.
-    \bibitem{rabiner1993fundamentals} L. Rabiner and B. H. Juang, \emph{Fundamentals of speech recognition}, Prentice Hall, 1993.
-    \bibitem{Rabiner1989} L. R. Rabiner, "A tutorial on hidden Markov models and selected applications in speech recognition," \textit{Proceedings of the IEEE}, vol. 77, no. 2, pp. 257-286, 1989.
-    \bibitem{Hinton2012} G. Hinton et al., "Deep neural networks for acoustic modeling in speech recognition: The shared views of four research groups," \textit{IEEE Signal Processing Magazine}, vol. 29, no. 6, pp. 82-97, 2012.
-    \bibitem{daubechies1992ten} I. Daubechies, \textit{Ten Lectures on Wavelets}, SIAM, 1992.
-    \bibitem{mallat1999wavelet} S. Mallat, \textit{A Wavelet Tour of Signal Processing}, Academic Press, 1999.
-    \bibitem{coifman1995wavelet} R. Coifman and D. Donoho, "Wavelet-based denoising," in \textit{Wavelets and Statistics}, Springer, 1995.
-
-    \bibitem{pham2010}
-    Phạm Văn Tuấn, Hoàng Lê Uyên Thục, "Giải pháp giảm nhiễu trong miền Wavelet để nâng cao hiệu suất nhận dạng tiếng nói tự động", Tạp chí Khoa học và Công nghệ, Đại học Đà Nẵng, Số 4(39).2010.
-
-    \bibitem{nguyen2023}
-    Nguyễn Thế Cường, Nguyễn Thanh Vi, Trương Ngọc Hải, "Cơ sở toán và MFCCs – Trích xuất đặc trưng âm thanh", 2023
-
-\end{thebibliography}
+
+
+
+% \subsection{Biến đổi Wavelet và ứng dụng trong trích xuất đặc trưng ASR}
+
+% Biến đổi Wavelet là một công cụ mạnh mẽ trong xử lý tín hiệu, đặc biệt hữu ích trong việc phân tích các tín hiệu không ổn định hoặc có đặc tính thay đổi theo thời gian. Khác với biến đổi Fourier, biến đổi Wavelet cung cấp cả thông tin về tần số và thời gian, giúp phân tích chi tiết hơn về cấu trúc của tín hiệu.
+
+% \subsubsection{Biến đổi Wavelet liên tục (CWT)}
+
+% Biến đổi Wavelet liên tục của một tín hiệu $x(t)$ được định nghĩa bởi:
+
+% \begin{equation}
+%     W(a, b) = \int_{-\infty}^{\infty} x(t) \frac{1}{\sqrt{|a|}} \psi\left(\frac{t - b}{a}\right) dt
+% \end{equation}
+
+% Trong đó, $a$ là hệ số tỉ lệ (scale), $b$ là hệ số dịch (translation), và $\psi(t)$ là hàm Wavelet cơ sở (mother wavelet). Hàm $\psi(t)$ phải thỏa mãn điều kiện:
+
+% \begin{equation}
+%     \int_{-\infty}^{\infty} \psi(t) dt = 0
+% \end{equation}
+
+% \subsubsection{Biến đổi Wavelet rời rạc (DWT)}
+
+% Biến đổi Wavelet rời rạc được thực hiện bằng cách lấy mẫu các hệ số $a$ và $b$ theo lũy thừa của 2:
+
+% \begin{equation}
+%     a = 2^j, \quad b = k \cdot 2^j
+% \end{equation}
+
+% Với $j, k \in \mathbb{Z}$. Khi đó, DWT được biểu diễn dưới dạng:
+
+% \begin{equation}
+%     W(j, k) = \int_{-\infty}^{\infty} x(t) \frac{1}{\sqrt{2^j}} \psi\left(\frac{t - k \cdot 2^j}{2^j}\right) dt
+% \end{equation}
+
+% \subsubsection{Ứng dụng trong trích xuất đặc trưng cho ASR}
+
+% Trong hệ thống nhận dạng tiếng nói tự động (ASR), việc trích xuất đặc trưng hiệu quả là một bước quan trọng để cải thiện hiệu suất nhận dạng, đặc biệt trong môi trường có nhiễu. Biến đổi Wavelet được sử dụng để giảm nhiễu và trích xuất các đặc trưng quan trọng từ tín hiệu tiếng nói.
+
+% Một phương pháp giảm nhiễu dựa trên hàm nén Wavelet thống kê trong miền cảm quan (Perceptual Wavelet Transform) đã được đề xuất. Bằng cách tích hợp thuật toán giảm nhiễu này vào tầng tiền xử lý của hệ thống ASR, hiệu suất nhận dạng được cải thiện đáng kể trong môi trường nhiễu \cite{pham2010}.
+
+
+% \section{Mạng Tích Chập Lượng Tử (QCNN)}
+
+% Mạng tích chập lượng tử (Quantum Convolutional Neural Network - QCNN) là một phiên bản lượng tử của mạng tích chập (CNN), được thiết kế để xử lý dữ liệu trong môi trường lượng tử. QCNN bao gồm các thành phần chính sau:
+
+% \begin{itemize}
+%     \item \textbf{Lớp tích chập lượng tử (Quantum Convolution Layer)}: Trích xuất đặc trưng từ trạng thái lượng tử đầu vào bằng cách áp dụng các cổng lượng tử như cổng Hadamard, cổng Pauli, hoặc cổng kiểm soát (CNOT). Phép tích chập lượng tử được biểu diễn bởi một ma trận unitary $U_{\text{conv}}$:
+%           \begin{equation}
+%               U_{\text{conv}} | \psi \rangle = | \phi \rangle
+%           \end{equation}
+%           trong đó $|\psi\rangle$ là trạng thái đầu vào và $|\phi\rangle$ là trạng thái sau tích chập.
+
+%     \item \textbf{Lớp gộp lượng tử (Quantum Pooling Layer)}: Giúp giảm số lượng qubit, tương tự như max pooling hoặc average pooling trong CNN. Phép gộp lượng tử sử dụng phép đo qubit hoặc các cổng kiểm soát để loại bỏ thông tin không quan trọng.
+
+%     \item \textbf{Lớp kết nối đầy đủ lượng tử (Quantum Fully Connected Layer)}: Kết hợp các đặc trưng đã trích xuất để tạo ra đầu ra cuối cùng. Nó được biểu diễn bởi một ma trận unitary $U_{\text{fc}}$:
+%           \begin{equation}
+%               U_{\text{fc}} | \psi \rangle = | \psi_{\text{out}} \rangle
+%           \end{equation}
+
+%     \item \textbf{Phép đo lượng tử (Measurement)}: Sau khi xử lý qua các lớp lượng tử, trạng thái lượng tử được chuyển về dữ liệu cổ điển thông qua phép đo xác suất trạng thái:
+%           \begin{equation}
+%               P(i) = | \langle i | \psi_{\text{out}} \rangle |^2
+%           \end{equation}
+% \end{itemize}
+
+% \section{Hidden Markov Model}
+% HMM là một mô hình xác suất dùng để mô tả một chuỗi các quan sát $O = \{o_1, o_2, ..., o_T\}$ thông qua một tập hợp trạng thái ẩn $Q = \{q_1, q_2, ..., q_N\}$.
+
+% Một HMM được định nghĩa bởi ba tham số chính:
+% \begin{itemize}
+%     \item $A = [a_{ij}]$: Ma trận xác suất chuyển trạng thái, trong đó $a_{ij} = P(q_{t+1} = j \mid q_t = i)$.
+%     \item $B = [b_j(o_t)]$: Xác suất quan sát (output probability), trong đó $b_j(o_t) = P(o_t \mid q_t = j)$.
+%     \item $\pi = [\pi_i]$: Xác suất ban đầu của trạng thái, $\pi_i = P(q_1 = i)$.
+% \end{itemize}
+
+% \subsection{Mô hình HMM cho Nhận dạng Giọng Nói}
+% Trong ASR, mỗi từ hoặc âm vị có thể được mô hình hóa bằng một HMM riêng lẻ. Khi một chuỗi tín hiệu giọng nói được đưa vào, mục tiêu là tìm ra chuỗi trạng thái $Q^*$ sao cho xác suất quan sát tối đa:
+% \begin{equation}
+%     Q^* = \arg\max_Q P(O \mid Q, \lambda)
+% \end{equation}
+% trong đó $\lambda = (A, B, \pi)$ là tham số của HMM.
+
+% \subsection{Các thuật toán chính}
+% \subsubsection{Thuật toán Viterbi}
+% Viterbi là thuật toán quan trọng để tìm chuỗi trạng thái tối ưu nhất dựa trên mô hình HMM. Xác suất tối đa cho trạng thái $j$ tại thời điểm $t$ được tính như sau:
+% \begin{equation}
+%     \delta_t(j) = \max_i \left[ \delta_{t-1}(i) a_{ij} \right] b_j(o_t)
+% \end{equation}
+% \subsubsection{Thuật toán Baum-Welch}
+% Để huấn luyện HMM, thuật toán Baum-Welch (một biến thể của Expectation-Maximization) được sử dụng để ước lượng tham số:
+% \begin{equation}
+%     a_{ij} = \frac{\sum_{t=1}^{T-1} P(q_t = i, q_{t+1} = j \mid O, \lambda)}{\sum_{t=1}^{T-1} P(q_t = i \mid O, \lambda)}
+% \end{equation}
+
+% \section{Mạng Nơ-ron LSTM và X-vector trong Nhận Dạng Giọng Nói}
+% LSTM là một biến thể của mạng nơ-ron truy hồi (RNN) giúp khắc phục vấn đề vanishing gradient trong mô hình hóa chuỗi thời gian dài. Công thức cập nhật trạng thái trong LSTM được biểu diễn như sau:
+% \begin{align}
+%     f_t         & = \sigma(W_f x_t + U_f h_{t-1} + b_f)       \\
+%     i_t         & = \sigma(W_i x_t + U_i h_{t-1} + b_i)       \\
+%     \tilde{C}_t & = \tanh(W_c x_t + U_c h_{t-1} + b_c)        \\
+%     C_t         & = f_t \odot C_{t-1} + i_t \odot \tilde{C}_t \\
+%     o_t         & = \sigma(W_o x_t + U_o h_{t-1} + b_o)       \\
+%     h_t         & = o_t \odot \tanh(C_t)
+% \end{align}
+% Trong đó, $f_t, i_t, o_t$ lần lượt là cổng quên, cổng nhập và cổng đầu ra; $C_t$ là trạng thái bộ nhớ; $h_t$ là trạng thái ẩn.
+
+% X-vector là phương pháp trích xuất đặc trưng sử dụng mạng DNN/LSTM để mô hình hóa giọng nói \cite{Snyder2018}. Nó bao gồm các lớp FC (Fully Connected) để tạo đặc trưng biểu diễn giọng nói từ cửa sổ tín hiệu âm thanh:
+% \begin{equation}
+%     x = \text{FC}_4(\text{FC}_3(\text{FC}_2(\text{FC}_1(O))))
+% \end{equation}
+% Trong đó, $O$ là chuỗi quan sát, và các lớp FC giúp trích xuất đặc trưng có độ phân biệt cao.
+
+
+% \begin{thebibliography}{9}
+%     \bibitem{dehak2011front} N. Dehak, P. J. Kenny, R. Dehak, P. Dumouchel, and P. Ouellet, "Front-end factor analysis for speaker verification," \textit{IEEE Transactions on Audio, Speech, and Language Processing}, vol. 19, no. 4, pp. 788-798, 2011.
+%     \bibitem{snyder2018x} D. Snyder, D. Garcia-Romero, G. Sell, D. Povey, and S. Khudanpur, "X-Vectors: Robust DNN Embeddings for Speaker Recognition," in \textit{Proceedings of IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)}, 2018, pp. 5329-5333.
+%     \bibitem{Snyder2018} D. Snyder, D. Garcia-Romero, G. Sell, D. Povey, and S. Khudanpur, "X-vectors: Robust DNN embeddings for speaker recognition," \textit{ICASSP}, pp. 5329-5333, 2018.
+%     \bibitem{Davis1980} S. B. Davis and P. Mermelstein, \textquotedblleft Comparison of parametric representations for monosyllabic word recognition in continuously spoken sentences,\textquotedblright \emph{IEEE Transactions on Acoustics, Speech, and Signal Processing}, vol. 28, no. 4, pp. 357–366, 1980.
+%     \bibitem{davis1980comparison} S. B. Davis and P. Mermelstein, ``Comparison of parametric representations for monosyllabic word recognition in continuously spoken sentences,'' \emph{IEEE Transactions on Acoustics, Speech, and Signal Processing}, vol. 28, no. 4, pp. 357–366, 1980.
+%     \bibitem{oppenheim1999discrete} A. V. Oppenheim and R. W. Schafer, \emph{Discrete-time signal processing}, Prentice Hall, 1999.
+%     \bibitem{rabiner1993fundamentals} L. Rabiner and B. H. Juang, \emph{Fundamentals of speech recognition}, Prentice Hall, 1993.
+%     \bibitem{Rabiner1989} L. R. Rabiner, "A tutorial on hidden Markov models and selected applications in speech recognition," \textit{Proceedings of the IEEE}, vol. 77, no. 2, pp. 257-286, 1989.
+%     \bibitem{Hinton2012} G. Hinton et al., "Deep neural networks for acoustic modeling in speech recognition: The shared views of four research groups," \textit{IEEE Signal Processing Magazine}, vol. 29, no. 6, pp. 82-97, 2012.
+%     \bibitem{daubechies1992ten} I. Daubechies, \textit{Ten Lectures on Wavelets}, SIAM, 1992.
+%     \bibitem{mallat1999wavelet} S. Mallat, \textit{A Wavelet Tour of Signal Processing}, Academic Press, 1999.
+%     \bibitem{coifman1995wavelet} R. Coifman and D. Donoho, "Wavelet-based denoising," in \textit{Wavelets and Statistics}, Springer, 1995.
+
+%     \bibitem{pham2010}
+%     Phạm Văn Tuấn, Hoàng Lê Uyên Thục, "Giải pháp giảm nhiễu trong miền Wavelet để nâng cao hiệu suất nhận dạng tiếng nói tự động", Tạp chí Khoa học và Công nghệ, Đại học Đà Nẵng, Số 4(39).2010.
+
+%     \bibitem{nguyen2023}
+%     Nguyễn Thế Cường, Nguyễn Thanh Vi, Trương Ngọc Hải, "Cơ sở toán và MFCCs – Trích xuất đặc trưng âm thanh", 2023
+
+% \end{thebibliography}
 \end{document}
