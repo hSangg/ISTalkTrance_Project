@@ -242,7 +242,7 @@ def train_speaker_recognition_system():
         savedir="pretrained_models/spkrec-xvect-voxceleb"
     )
     
-    train_voice_dir = "../../reserve"
+    train_voice_dir = "../../train_voice"
     
     speaker_segments = defaultdict(list)
     all_segments = []

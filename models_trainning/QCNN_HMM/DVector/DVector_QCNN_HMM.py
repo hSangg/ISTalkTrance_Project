@@ -15,10 +15,7 @@ from datetime import datetime
 import librosa
 
 warnings.filterwarnings('ignore')
-if torch.cuda.is_available():
-    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
-    torch.cuda.set_per_process_memory_fraction(0.7)
-    torch.backends.cudnn.benchmark = True
+
 class SpeakerIdentification:
     def __init__(self, n_qubits=7, n_hmm_components=2, use_gpu=True):
         self.n_qubits = n_qubits
@@ -542,5 +539,5 @@ if __name__ == "__main__":
     else:
         print("No GPU detected, falling back to CPU")
     
-    train_voice_folder = "../train_voice"
+    train_voice_folder = "../../reserve"
     cross_validate(train_voice_folder, k=3, use_gpu=use_gpu)

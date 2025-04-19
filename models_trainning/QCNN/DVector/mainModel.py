@@ -18,10 +18,10 @@ torch.manual_seed(42)
 
 N_QUBITS = 7
 N_LAYERS = 2
-BATCH_SIZE = 64
+BATCH_SIZE = 4
 LEARNING_RATE = 0.001
 EPOCHS = 10
-SEGMENT_DURATION = 1.0
+SEGMENT_DURATION = 3.0
 SAMPLE_RATE = 16000
 N_FOLDS = 3
 
@@ -226,12 +226,12 @@ def extract_audio_segments(audio_file, script_file, segment_duration=SEGMENT_DUR
 
 def train_speaker_recognition_system():
     print("Loading SpeechBrain pretrained ECAPA-TDNN model...")
-    dvector_model = EncoderClassifier.from_hparams(
+    dvector_model = SpeakerRecognition.from_hparams(
         source="speechbrain/spkrec-ecapa-voxceleb",
         savedir="pretrained_models/spkrec-ecapa-voxceleb"
     )
     
-    train_voice_dir = "../../reserve"
+    train_voice_dir = "../../train_voice"
     
     speaker_segments = defaultdict(list)
     all_segments = []
