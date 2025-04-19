@@ -1,10 +1,15 @@
 import os
 import pickle
 import time
+import wave
+from datetime import timedelta
+from io import BytesIO
 
 import librosa
+import torch
 from flask import Flask, request, jsonify
-
+from werkzeug.datastructures import FileStorage
+import soundfile as sf
 from modules.authenticate import VoiceAuthenticator
 from modules.batch_trainer import BatchTrainer
 from modules.config import Config
@@ -32,137 +37,139 @@ batch_trainer = BatchTrainer()
 hf_token = os.getenv("HF_TOKEN")
 hf_token_full_access = os.getenv("HF_TOKEN_FULL_ACCESS")
 
-from transformers import (Wav2Vec2ForCTC, Wav2Vec2Processor, AutoModelForSeq2SeqLM, AutoTokenizer)
+from transformers import (Wav2Vec2ForCTC, Wav2Vec2Processor, AutoModelForSeq2SeqLM, AutoTokenizer, AutoConfig,
+                          AutoModelForCausalLM, Pipeline, pipeline)
 processor = Wav2Vec2Processor.from_pretrained("anuragshas/wav2vec2-large-xlsr-53-vietnamese", token=hf_token_full_access)
 model = Wav2Vec2ForCTC.from_pretrained("anuragshas/wav2vec2-large-xlsr-53-vietnamese", token=hf_token_full_access)
 
 summary_tokenizer = AutoTokenizer.from_pretrained("VietAI/vit5-base", token=hf_token_full_access)
 summary_model = AutoModelForSeq2SeqLM.from_pretrained("VietAI/vit5-base", token=hf_token_full_access)
 
-from transformers import pipeline
+from pyannote.audio import Pipeline
+
 transcriber = pipeline("automatic-speech-recognition", model="vinai/PhoWhisper-small", token=hf_token_full_access)
 
-# model_path = "vinai/PhoGPT-4B-Chat"
-# config = AutoConfig.from_pretrained(model_path, trust_remote_code=True, token="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")
-# phoModel = AutoModelForCausalLM.from_pretrained(model_path, config=config, torch_dtype=torch.bfloat16, trust_remote_code=True, token="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")
-# tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True, token="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")
-# PROMPT_TEMPLATE = "### Câu hỏi: {instruction}\n### Trả lời:"
+model_path = "vinai/PhoGPT-4B-Chat"
+config = AutoConfig.from_pretrained(model_path, trust_remote_code=True, token="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")
+phoModel = AutoModelForCausalLM.from_pretrained(model_path, config=config, torch_dtype=torch.bfloat16, trust_remote_code=True, token="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")
+tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True, token="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")
+PROMPT_TEMPLATE = "### Câu hỏi: {instruction}\n### Trả lời:"
 
-#
-# @app.route("/diarization", methods=["POST"])
-# def diarization():
-#     if AUDIO not in request.files:
-#         return jsonify({ERROR: NO_FILES_PROVIDED}), 400
-#
-#     audio_file = request.files[AUDIO]
-#     audio_bytes = audio_file.read()
-#
-#     audio_io = BytesIO(audio_bytes)
-#
-#     with wave.open(BytesIO(audio_bytes), 'rb') as wav_file:
-#         framerate = wav_file.getframerate()
-#         channels = wav_file.getnchannels()
-#         sampwidth = wav_file.getsampwidth()
-#
-#     full_audio_io = BytesIO(audio_bytes)
-#     full_audio, sr = librosa.load(full_audio_io, sr=None, mono=True)
-#
-#     pipeline = Pipeline.from_pretrained(
-#         "pyannote/speaker-diarization-3.1",
-#         use_auth_token=hf_token)
-#
-#     print("prepare pipeline...")
-#     diarization = pipeline(audio_io)
-#
-#     results = []
-#
-#     for turn, _, speaker in diarization.itertracks(yield_label=True):
-#         start_time = str(timedelta(seconds=int(turn.start)))
-#         end_time = str(timedelta(seconds=int(turn.end)))
-#
-#         if start_time == end_time:
-#             continue
-#
-#         start_sample = int(turn.start * sr)
-#         end_sample = int(turn.end * sr)
-#
-#         audio_segment = full_audio[start_sample:end_sample]
-#
-#         segment_wav = BytesIO()
-#         sf.write(segment_wav, audio_segment, sr, format='WAV')
-#         segment_wav.seek(0)
-#
-#         print(f"🏃‍♂️ start predict speaker from: {start_time} to: {end_time}")
-#         predict_speaker = authenticator.authenticate(segment_wav.read())
-#         segment_wav.seek(0)
-#         segment_file = FileStorage(
-#             stream=segment_wav,
-#             filename=f"segment_{start_time}_{end_time}.wav",
-#             content_type="audio/wav"
-#         )
-#
-#         segment_path = Utils.store_WAV(segment_file)
-#
-#         try:
-#             transcription = transcriber(segment_path)['text']
-#
-#             result_line = f"{start_time} {end_time} {predict_speaker} {transcription}"
-#             print(result_line.strip())
-#
-#             results.append({
-#                 "start_time": start_time,
-#                 "end_time": end_time,
-#                 "speaker_data": predict_speaker["best_user"],
-#                 "transcription": transcription
-#             })
-#         finally:
-#             if os.path.exists(segment_path):
-#                 os.unlink(segment_path)
-#
-#         dialogue_text = "\n".join(
-#             f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in results
-#         )
-#
-#         instruction = "Đây là người nói và nội dung chưa đúng chính tả, hãy tổng hợp lại và tóm tắt cuộc họp " + dialogue_text
-#         input_prompt = PROMPT_TEMPLATE.format_map({"instruction": instruction})
-#
-#         input_ids = tokenizer(input_prompt, return_tensors="pt")
-#
-#         outputs = model.generate(
-#             inputs=input_ids["input_ids"].to("cuda"),
-#             attention_mask=input_ids["attention_mask"].to("cuda"),
-#             do_sample=True,
-#             temperature=1.0,
-#             top_k=50,
-#             top_p=0.9,
-#             max_new_tokens=1024,
-#             eos_token_id=tokenizer.eos_token_id,
-#             pad_token_id=tokenizer.pad_token_id
-#         )
-#
-#         response = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
-#         response = response.split("### Trả lời:")[1]
-#
-#         # input_text = f"tóm tắt: {dialogue_text}"
-#         #
-#         # input_ids = summary_tokenizer(
-#         #     input_text,
-#         #     return_tensors="pt",
-#         #     max_length=512,
-#         #     truncation=True
-#         # ).input_ids
-#         #
-#         # output_ids = summary_model.generate(
-#         #     input_ids,
-#         #     max_length=150,
-#         #     num_beams=4,
-#         #     early_stopping=True
-#         # )
-#         # summary = summary_tokenizer.decode(output_ids[0], skip_special_tokens=True)
-#     return jsonify({
-#         "message": "Diarization completed successfully.",
-#         "results": response
-#     }), 200
+
+@app.route("/diarization", methods=["POST"])
+def diarization():
+    if AUDIO not in request.files:
+        return jsonify({ERROR: NO_FILES_PROVIDED}), 400
+
+    audio_file = request.files[AUDIO]
+    audio_bytes = audio_file.read()
+
+    audio_io = BytesIO(audio_bytes)
+
+    with wave.open(BytesIO(audio_bytes), 'rb') as wav_file:
+        framerate = wav_file.getframerate()
+        channels = wav_file.getnchannels()
+        sampwidth = wav_file.getsampwidth()
+
+    full_audio_io = BytesIO(audio_bytes)
+    full_audio, sr = librosa.load(full_audio_io, sr=None, mono=True)
+
+    pipeline = Pipeline.from_pretrained(
+        "pyannote/speaker-diarization-3.1",
+        use_auth_token=hf_token)
+
+    print("prepare pipeline...")
+    diarization = pipeline(audio_io)
+
+    results = []
+
+    for turn, _, speaker in diarization.itertracks(yield_label=True):
+        start_time = str(timedelta(seconds=int(turn.start)))
+        end_time = str(timedelta(seconds=int(turn.end)))
+
+        if start_time == end_time:
+            continue
+
+        start_sample = int(turn.start * sr)
+        end_sample = int(turn.end * sr)
+
+        audio_segment = full_audio[start_sample:end_sample]
+
+        segment_wav = BytesIO()
+        sf.write(segment_wav, audio_segment, sr, format='WAV')
+        segment_wav.seek(0)
+
+        print(f"🏃‍♂️ start predict speaker from: {start_time} to: {end_time}")
+        predict_speaker = authenticator.authenticate(segment_wav.read())
+        segment_wav.seek(0)
+        segment_file = FileStorage(
+            stream=segment_wav,
+            filename=f"segment_{start_time}_{end_time}.wav",
+            content_type="audio/wav"
+        )
+
+        segment_path = Utils.store_WAV(segment_file)
+
+        try:
+            transcription = transcriber(segment_path)['text']
+
+            result_line = f"{start_time} {end_time} {predict_speaker} {transcription}"
+            print(result_line.strip())
+
+            results.append({
+                "start_time": start_time,
+                "end_time": end_time,
+                "speaker_data": predict_speaker["best_user"],
+                "transcription": transcription
+            })
+        finally:
+            if os.path.exists(segment_path):
+                os.unlink(segment_path)
+
+        dialogue_text = "\n".join(
+            f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in results
+        )
+
+        instruction = "Đây là người nói và nội dung chưa đúng chính tả, hãy tổng hợp lại và tóm tắt cuộc họp " + dialogue_text
+        input_prompt = PROMPT_TEMPLATE.format_map({"instruction": instruction})
+
+        input_ids = tokenizer(input_prompt, return_tensors="pt")
+
+        outputs = phoModel.generate(
+            inputs=input_ids["input_ids"].to("cpu"),
+            attention_mask=input_ids["attention_mask"].to("cpu"),
+            do_sample=True,
+            temperature=1.0,
+            top_k=50,
+            top_p=0.9,
+            max_new_tokens=1024,
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.pad_token_id
+        )
+
+        response = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
+        response = response.split("### Trả lời:")[1]
+
+        # input_text = f"tóm tắt: {dialogue_text}"
+        #
+        # input_ids = summary_tokenizer(
+        #     input_text,
+        #     return_tensors="pt",
+        #     max_length=512,
+        #     truncation=True
+        # ).input_ids
+        #
+        # output_ids = summary_model.generate(
+        #     input_ids,
+        #     max_length=150,
+        #     num_beams=4,
+        #     early_stopping=True
+        # )
+        # summary = summary_tokenizer.decode(output_ids[0], skip_special_tokens=True)
+    return jsonify({
+        "message": "Diarization completed successfully.",
+        "results": response
+    }), 200
 
 
 @app.route('/deprecated/train', methods=['POST'])
@@ -275,7 +282,7 @@ def train():
 
     audio_file = request.files.get(AUDIO)
     script_file = request.files.get(SCRIPT)
-
+    print("store data....")
     audio_path, script_path = Utils.store_data(audio_file, script_file)
 
     annotations = Utils.load_annotations(script_path)
