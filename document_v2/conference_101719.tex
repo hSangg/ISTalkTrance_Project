@@ -7,6 +7,7 @@
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
+\usepackage{float}
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 \begin{document}
@@ -79,6 +80,7 @@ QCNN is a new model in quantum deep learning, proposed to take advantage of quan
 The dataset used for training and evaluating the speech recognition system consists of a series of Vietnamese conversations collected from various sources. These data sources include natural conversations, group discussions, podcasts, lectures, as well as direct interviews. The dataset reflects the diversity of voices, expressions, and speaking speeds of individual speakers, which helps the model learn the phonetic, prosodic, and pronunciation features of speakers in various contexts.
 
 \subsubsection{Descriptive Statistics}
+The total size of the dataset is 15GB, with many measurements listed below:
 \begin{table}[h]
     \centering
     \caption{Overview of speech dataset statistics}
@@ -98,6 +100,45 @@ The dataset used for training and evaluating the speech recognition system consi
     \end{tabular}
 \end{table}
 \subsection{Methodology}
+\subsubsection{Hidden Markov Model (HMM) - Mel Frequency Cepstral Coefficients (MFCCs)}
+HMM is a probabilistic model used to describe a sequence of observations $O = \{o_1, o_2, ..., o_T\}$ through a set of hidden states $Q = \{q_1, q_2, ..., q_N\}$.
+
+An HMM is defined by three main parameters:
+\begin{itemize}
+    \item $A = [a_{ij}]$: The state transition probability matrix, where $a_{ij} = P(q_{t+1} = j \mid q_t = i)$.
+    \item $B = [b_j(o_t)]$: The observation (output) probability, where $b_j(o_t) = P(o_t \mid q_t = j)$.
+    \item $\pi = [\pi_i]$: The initial state distribution, $\pi_i = P(q_1 = i)$.
+\end{itemize}
+
+In ASR, each word or phoneme can be modeled by an individual HMM. When a speech signal sequence is input, the goal is to find the optimal state sequence $Q^*$ that maximizes the observation probability:
+\begin{equation}
+    Q^* = \arg\max_Q P(O \mid Q, \lambda)
+\end{equation}
+where $\lambda = (A, B, \pi)$ are the parameters of the HMM.
+
+The Viterbi algorithm is essential for finding the most likely state sequence based on the HMM. The maximum probability for state $j$ at time $t$ is computed as:
+\begin{equation}
+    \delta_t(j) = \max_i \left[ \delta_{t-1}(i) a_{ij} \right] b_j(o_t)
+\end{equation}
+
+To train the HMM, the Baum-Welch algorithm (a variant of Expectation-Maximization) is used to estimate the parameters:
+\begin{equation}
+    a_{ij} = \frac{\sum_{t=1}^{T-1} P(q_t = i, q_{t+1} = j \mid O, \lambda)}{\sum_{t=1}^{T-1} P(q_t = i \mid O, \lambda)}
+\end{equation}
+
+Mel-Frequency Cepstral Coefficients (MFCC) are widely used in ASR systems to extract speech features by mimicking human auditory perception. The analog speech signal is first digitized, then passed through a high-pass filter and windowed to minimize noise and spectral leakage. The Discrete Fourier Transform (DFT) converts the signal to the frequency domain, which is then mapped to the Mel scale. A logarithmic function is applied to compress the dynamic range, and the Discrete Cosine Transform (DCT) converts this to the cepstral domain. Finally, first- and second-order derivatives ($\Delta$, $\Delta^2$) are added to capture temporal dynamics.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=1\textwidth]{resource/img/mfcc_flow.pdf}
+        \caption{Tranform signal to MFCCs}
+        \label{fig:LSTM}
+    \end{minipage}
+\end{figure}
+
+
 \bibliographystyle{IEEEtran}
 \bibliography{resource/references}
 \end{document}
