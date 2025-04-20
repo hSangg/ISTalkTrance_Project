@@ -47,6 +47,31 @@ Trong bối cảnh các cuộc họp và tương tác trực tuyến ngày càng
 
 Đề tài hướng đến việc xây dựng một hệ thống xử lý giọng nói thời gian thực tích hợp đa chức năng: nhận diện người nói, phân tích và tóm tắt hội thoại theo từng cá nhân, đồng thời dịch giọng nói sang ngôn ngữ khác mà vẫn bảo toàn đặc trưng giọng nói ban đầu. Hệ thống sẽ ứng dụng các mô hình học sâu hiện đại kết hợp các đặc trưng âm học để đạt hiệu quả cao.
 
+\section{Tài Nguyên}
+\subsubsection{Bộ dữ liệu}
+Tập dữ liệu được sử dụng nhằm huấn luyện và đánh giá hệ thống nhận dạng giọng nói bao gồm một loạt các đoạn hội thoại tiếng Việt được thu thập từ nhiều nguồn khác nhau. Những nguồn dữ liệu này bao gồm các cuộc trò chuyện tự nhiên, thảo luận nhóm, podcast, bài giảng, cũng như các cuộc phỏng vấn trực tiếp. Tập dữ liệu phản ánh sự đa dạng về giọng nói, cách diễn đạt và tốc độ nói của từng người, điều này giúp mô hình có thể học được các đặc điểm ngữ âm, ngữ điệu và cách phát âm của người nói trong nhiều ngữ cảnh khác nhau.
+
+\subsubsection{Thống kê mô tả}
+\begin{table}
+    \centering
+    \begin{tabular}{|l|c|}
+        \hline
+        \textbf{Thống kê}          & \textbf{Giá trị}       \\
+        \hline
+        Tổng số speaker            & 83                     \\
+        Tổng số đoạn thoại         & 10430                  \\
+        Số lần chuyển speaker      & 751                    \\
+        Tổng số file audio         & 85                     \\
+        Tổng số file script (.txt) & 85                     \\
+        Tổng thời lượng toàn tập   & 64608 giây (1076 phút) \\
+        Độ dài TB đoạn thoại       & 6.19 giây              \\
+        Độ lệch chuẩn độ dài       & 11.96 giây             \\
+        \hline
+    \end{tabular}
+    \caption{Tổng quan thống kê tập dữ liệu thoại}
+\end{table}
+
+
 
 % \section{Trích Xuất MFCC}
 % Quy trình trích xuất MFCC bao gồm nhiều bước tiền xử lý để chuyển đổi tín hiệu giọng nói từ miền thời gian sang miền tần số và sau đó trích xuất các đặc trưng cepstral.
