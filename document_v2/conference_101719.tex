@@ -47,6 +47,36 @@ This research aims to develop a real-time speech processing system that integrat
 
 
 
+\section{Related Work}
+
+In the field of real-time speech recognition and analysis, multiple approaches have been proposed with the aid of machine learning and deep learning techniques. This section presents an overview of the relevant approaches, divided into groups based on the characteristic methodology and the model used.
+
+\subsection{Mel-Frequency Cepstral Coefficients (MFCC)}
+
+MFCC is one of the most common features in speech signal processing. The article on the use of MFCC to extract characteristics for training HMM models (hidden Markov models) by Rabiner~\cite{rabiner1989tutorial} detailed the use of hidden Markov models (HMM) combined with MFCC characteristics for speech recognition.
+\subsection{Wavelet-based Features}
+
+Wavelet transform is a powerful tool used to exploit time and frequency information from audio signals. Wavelet shows good ability to handle sound in noisy or unstable environments. Although not as widely available as MFCC, wavelets have recently been applied to systems thanks to their powerful noise cancellation capabilities. Studies have shown that using wavelet transforms in feature extraction can improve the accuracy of speech recognition systems, particularly in environments with noise \cite{gupta2003robust, wang2008robust}.
+
+\subsection{X-vector and D-vector Embeddings}
+
+X-vectors and D-vectors are representations learned from audio data, often used for speaker recognition. X-vector systems often use DNN or TDNN networks to learn performances to improve speaker discrimination accuracy. These representations are widely used in modern processing, for example in the systems of Kaldi and SpeechBrain. Snyder et al.~\cite{Snyder2018Xvectors} introduced X-vector as a deep learning representation for speaker recognition. For D-vector, Wan et al.~\cite{Wan2018Generalized} proposed using the GE2E loss function for training, which improves performance in speaker recognition.
+
+\subsection{Hidden Markov Models (HMM)}
+
+HMM is the foundation of many traditional ASR systems. Rabiner \cite{rabiner1989tutorial} has proposed effective Viterbi training methods and algorithms for HMM in speech recognition. Hybrid systems such as in~\cite{voll2007hybrid, perero2022comparison} also show that combining HMM with neural networks improves accuracy in real-world environments.
+
+\subsection{Recurrent Neural Networks (RNN)}
+
+RNN is a popular model in ASR because it can capture temporal dependencies in speech data. LSTM and GRU variants help solve vanishing gradient problems and are effective in modeling long-term context. Systems like Deep Speech~\cite{hannun2014deep} and work from Graves et al.~\cite{graves2013speech} show that RNN-based models can achieve good results in end-to-end ASR tasks.
+
+\subsection{Quantum Convolutional Neural Networks (QCNN)}
+
+QCNN is a new model in quantum deep learning, proposed to take advantage of quantum properties to reduce the number of redundant parameters, focus on key characteristics, and enhance representability. Cong et al.~\cite{Cong2019QuantumCNN} introduced QCNN as a new quantum machine learning model, which combines with the characteristics of convolutional neural networks and quantum properties to classify quantum states. Although QCNN has not been widely applied in ASR, research by Yang et al.~\cite{Yang2021Decentralizing} has shown potential in combining QCNN with other 
+
+\bibliographystyle{IEEEtran}
+\bibliography{resource/references}
+
 \subsection{Resource}
 \subsubsection{Dataset}
 The dataset used for training and evaluating the speech recognition system consists of a series of Vietnamese conversations collected from various sources. These data sources include natural conversations, group discussions, podcasts, lectures, as well as direct interviews. The dataset reflects the diversity of voices, expressions, and speaking speeds of individual speakers, which helps the model learn the phonetic, prosodic, and pronunciation features of speakers in various contexts.
