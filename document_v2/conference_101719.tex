@@ -138,6 +138,60 @@ Mel-Frequency Cepstral Coefficients (MFCC) are widely used in ASR systems to ext
     \end{minipage}
 \end{figure}
 
+\subsubsection{Quantum Convolutional Neural Network (QCNN) - Mel Frequency Cepstral Coefficients (MFCCs)}
+
+In this approach, Mel-Frequency Cepstral Coefficients (MFCCs) are used as the input features to a Quantum Convolutional Neural Network (QCNN). MFCCs are effective in capturing the spectral characteristics of speech signals and are widely used in speaker recognition tasks.
+
+\paragraph{MFCC Extraction}
+
+The MFCC extraction pipeline consists of the following steps:
+
+\begin{itemize}
+    \item \textbf{Pre-emphasis:} Apply a high-pass filter to amplify high frequencies:
+    \[
+    H(z) = 1 - \alpha z^{-1}, \quad \alpha \approx 0.95
+    \]
+    \item \textbf{Framing and Windowing:} Divide the signal into overlapping frames and apply a window function (e.g., Hamming).
+    \item \textbf{FFT:} Convert each frame to the frequency domain.
+    \item \textbf{Mel Filter Bank:} Apply a bank of filters spaced in the mel scale.
+    \item \textbf{Logarithm:} Compute the log energy of each filter output.
+    \item \textbf{DCT:} Apply Discrete Cosine Transform to obtain decorrelated MFCCs.
+\end{itemize}
+
+\paragraph{Quantum Encoding}
+
+The MFCC vectors are normalized and encoded into a quantum state using angle encoding (specifically \( RY \) rotations):
+
+\begin{equation}
+|\psi\rangle = \bigotimes_{k=1}^{n} RY(x_k) |0\rangle
+\end{equation}
+
+\paragraph{QCNN Architecture}
+
+The QCNN consists of alternating layers of quantum convolution and pooling operations followed by a variational layer. The general structure is:
+
+\begin{equation}
+|\phi\rangle = U_{\text{QCNN}} |\psi\rangle = (U_{\text{var}} \cdot U_{\text{pool}} \cdot U_{\text{conv}}) |\psi\rangle
+\end{equation}
+
+\begin{itemize}
+    \item \textbf{Quantum Convolution:} Apply local entangling unitaries:
+    \[
+    U^{(i,j)}_{\text{conv}} = RZ_i(\theta) \cdot CX_{ij} \cdot RZ_j(\phi) \cdot CX_{ji} \cdot RZ_i(\lambda)
+    \]
+    \item \textbf{Quantum Pooling:} Perform controlled unitary operations or partial measurements to reduce the number of active qubits.
+    \item \textbf{Variational Layer:} Apply trainable unitaries to remaining qubits for classification.
+\end{itemize}
+
+\paragraph{Measurement and Output}
+
+At the end of the QCNN, selected qubits are measured using Pauli-Z expectation:
+
+\begin{equation}
+\langle Z \rangle = \langle \phi | Z | \phi \rangle
+\end{equation}
+
+The measured values are used to compute prediction probabilities or classification scores. Training is done by minimizing a loss function such as cross-entropy or MSE using gradient-based optimizers.
 
 \bibliographystyle{IEEEtran}
 \bibliography{resource/references}
