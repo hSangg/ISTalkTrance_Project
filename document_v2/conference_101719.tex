@@ -11,6 +11,8 @@
 \usepackage[utf8]{inputenc}
 \usepackage[T5]{fontenc}
 \usepackage[vietnamese,english]{babel}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning}
 
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
@@ -29,31 +31,31 @@
 \author{
     \IEEEauthorblockN{1\textsuperscript{st} Cao Hoài Sang}
     \IEEEauthorblockA{\textit{Department of Information Systems} \\
-    \textit{University of Information Technology} \\
-    Ho Chi Minh City, Viet Nam \\
-    21522541@gm.uit.edu.vn}
+        \textit{University of Information Technology} \\
+        Ho Chi Minh City, Viet Nam \\
+        21522541@gm.uit.edu.vn}
     %
     \and
     %
     \IEEEauthorblockN{2\textsuperscript{nd} Thi Thành Công}
     \IEEEauthorblockA{\textit{Department of Information Systems} \\
-    \textit{University of Information Technology} \\
-    Ho Chi Minh City, Viet Nam \\
-    21521897@gm.uit.edu.vn}
+        \textit{University of Information Technology} \\
+        Ho Chi Minh City, Viet Nam \\
+        21521897@gm.uit.edu.vn}
     %
     \linebreakand
     \IEEEauthorblockN{3\textsuperscript{rd} Assoc. Prof. Nguyễn Đình Thuân}
     \IEEEauthorblockA{\textit{Department of Information Systems} \\
-    \textit{University of Information Technology} \\
-    Ho Chi Minh City, Viet Nam \\
-    thuannd@hcmuit.edu.vn}
+        \textit{University of Information Technology} \\
+        Ho Chi Minh City, Viet Nam \\
+        thuannd@hcmuit.edu.vn}
     %
     \and
     \IEEEauthorblockN{4\textsuperscript{th} Nguyễn Minh Nhựt}
     \IEEEauthorblockA{\textit{Department of Information Systems} \\
-    \textit{University of Information Technology} \\
-    Ho Chi Minh City, Viet Nam \\
-    nhutnm.17@grad.uit.edu.vn}
+        \textit{University of Information Technology} \\
+        Ho Chi Minh City, Viet Nam \\
+        nhutnm.17@grad.uit.edu.vn}
 }
 
 \maketitle
@@ -150,15 +152,69 @@ To train the HMM, the Baum-Welch algorithm (a variant of Expectation-Maximizatio
 
 Mel-Frequency Cepstral Coefficients (MFCC) are widely used in ASR systems to extract speech features by mimicking human auditory perception. The analog speech signal is first digitized, then passed through a high-pass filter and windowed to minimize noise and spectral leakage. The Discrete Fourier Transform (DFT) converts the signal to the frequency domain, which is then mapped to the Mel scale. A logarithmic function is applied to compress the dynamic range, and the Discrete Cosine Transform (DCT) converts this to the cepstral domain. Finally, first- and second-order derivatives ($\Delta$, $\Delta^2$) are added to capture temporal dynamics.
 
+
 \begin{figure}[H]
     \centering
-    \begin{minipage}{0.45\textwidth}
-        \centering
-        \includegraphics[width=1\textwidth]{resource/img/mfcc_flow.pdf}
-        \caption{Tranform signal to MFCCs}
-        \label{fig:LSTM}
-    \end{minipage}
+    \resizebox{0.45\textwidth}{!}{%
+        \begin{tikzpicture}[
+            node distance=0.8cm and 1.4cm,
+            every node/.style={font=\small},
+            box/.style={draw, rounded corners, minimum width=2.5cm, minimum height=1cm, align=center},
+            line/.style={draw, thick, -{Stealth}}
+            ]
+
+            % Nodes
+            \node[box] (adc) {A/D\\conversion};
+            \node[box, right=of adc] (pre) {Preemphasis};
+            \node[box, right=of pre] (win) {Windowing};
+            \node[box, right=of win] (dft) {FFT};
+            \node[box, below=of dft] (mel) {Mel\\filterbank};
+            \node[box, below=of mel] (log) {log()};
+            \node[box, below=of log] (idft) {IDFT};
+            \node[box, below=of idft] (dyn) {Dynamic\\features};
+            \node[box, left=of dyn] (feat) {Feature\\Transform};
+
+            % Energy line
+            \node[coordinate, left=1cm of mel] (energyanchor) {};
+            \draw[line] (win) |- node[near end, left] {energy} (energyanchor) |- (dyn);
+
+            % Connections
+            \draw[line] (adc) -- (pre);
+            \draw[line] (pre) -- (win);
+            \draw[line] (win) -- (dft);
+            \draw[line] (dft) -- (mel);
+            \draw[line] (mel) -- (log);
+            \draw[line] (log) -- (idft);
+            \draw[line] (idft) -- (dyn);
+            \draw[line] (dyn) -- (feat);
+
+        \end{tikzpicture}%
+    }
+    \caption{MFCC feature extraction pipeline}
 \end{figure}
+
+\subsection{Hidden Markov Models - Wavelet}
+Wavelet Transform (WT) is a mathematical tool that provides a time-frequency representation of signals. Unlike the Fourier Transform, which only provides frequency information, the wavelet transform can represent both time and frequency information simultaneously. This makes it especially useful for analyzing non-stationary signals like speech.
+
+The Continuous Wavelet Transform of a signal $x(t)$ is defined as:
+
+\[
+    W(a, b) = \int_{-\infty}^{\infty} x(t) \frac{1}{\sqrt{|a|}} \psi\left(\frac{t - b}{a} \right) dt
+\]
+
+where:
+\begin{itemize}
+    \item $a$ is the scale parameter (related to frequency),
+    \item $b$ is the translation parameter (related to time),
+    \item $\psi(t)$ is the mother wavelet.
+\end{itemize}
+
+\paragraph{Discrete Wavelet Transform}
+The DWT is a sampled version of the CWT and is more suitable for implementation in digital systems. It decomposes a signal into approximation and detail coefficients using filter banks. The signal is passed through a series of low-pass and high-pass filters followed by downsampling. \cite{tufekci2000dwt}
+
+\paragraph{HMM and Wavelet-based Features}
+We can replace MFCCs with the Wavelet coefficients in the observation vectors used in HMM training and decoding.
+
 
 \subsubsection{Quantum Convolutional Neural Network (QCNN) - Mel Frequency Cepstral Coefficients (MFCCs)}
 
@@ -170,9 +226,9 @@ The MFCC extraction pipeline consists of the following steps:
 
 \begin{itemize}
     \item \textbf{Pre-emphasis:} Apply a high-pass filter to amplify high frequencies:
-    \[
-    H(z) = 1 - \alpha z^{-1}, \quad \alpha \approx 0.95
-    \]
+          \[
+              H(z) = 1 - \alpha z^{-1}, \quad \alpha \approx 0.95
+          \]
     \item \textbf{Framing and Windowing:} Divide the signal into overlapping frames and apply a window function (e.g., Hamming).
     \item \textbf{FFT:} Convert each frame to the frequency domain.
     \item \textbf{Mel Filter Bank:} Apply a bank of filters spaced in the mel scale.
@@ -185,7 +241,7 @@ The MFCC extraction pipeline consists of the following steps:
 The MFCC vectors are normalized and encoded into a quantum state using angle encoding (specifically \( RY \) rotations):
 
 \begin{equation}
-|\psi\rangle = \bigotimes_{k=1}^{n} RY(x_k) |0\rangle
+    |\psi\rangle = \bigotimes_{k=1}^{n} RY(x_k) |0\rangle
 \end{equation}
 
 \paragraph{QCNN Architecture}
@@ -193,14 +249,14 @@ The MFCC vectors are normalized and encoded into a quantum state using angle enc
 The QCNN consists of alternating layers of quantum convolution and pooling operations followed by a variational layer. The general structure is:
 
 \begin{equation}
-|\phi\rangle = U_{\text{QCNN}} |\psi\rangle = (U_{\text{var}} \cdot U_{\text{pool}} \cdot U_{\text{conv}}) |\psi\rangle
+    |\phi\rangle = U_{\text{QCNN}} |\psi\rangle = (U_{\text{var}} \cdot U_{\text{pool}} \cdot U_{\text{conv}}) |\psi\rangle
 \end{equation}
 
 \begin{itemize}
     \item \textbf{Quantum Convolution:} Apply local entangling unitaries:
-    \[
-    U^{(i,j)}_{\text{conv}} = RZ_i(\theta) \cdot CX_{ij} \cdot RZ_j(\phi) \cdot CX_{ji} \cdot RZ_i(\lambda)
-    \]
+          \[
+              U^{(i,j)}_{\text{conv}} = RZ_i(\theta) \cdot CX_{ij} \cdot RZ_j(\phi) \cdot CX_{ji} \cdot RZ_i(\lambda)
+          \]
     \item \textbf{Quantum Pooling:} Perform controlled unitary operations or partial measurements to reduce the number of active qubits.
     \item \textbf{Variational Layer:} Apply trainable unitaries to remaining qubits for classification.
 \end{itemize}
@@ -210,7 +266,7 @@ The QCNN consists of alternating layers of quantum convolution and pooling opera
 At the end of the QCNN, selected qubits are measured using Pauli-Z expectation:
 
 \begin{equation}
-\langle Z \rangle = \langle \phi | Z | \phi \rangle
+    \langle Z \rangle = \langle \phi | Z | \phi \rangle
 \end{equation}
 
 The measured values are used to compute prediction probabilities or classification scores. Training is done by minimizing a loss function such as cross-entropy or MSE using gradient-based optimizers.
