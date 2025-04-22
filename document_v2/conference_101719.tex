@@ -99,11 +99,11 @@ RNN is a popular model in ASR because it can capture temporal dependencies in sp
 
 QCNN is a new model in quantum deep learning, proposed to take advantage of quantum properties to reduce the number of redundant parameters, focus on key characteristics, and enhance representability. Cong et al.~\cite{Cong2019QuantumCNN} introduced QCNN as a new quantum machine learning model, which combines with the characteristics of convolutional neural networks and quantum properties to classify quantum states. Although QCNN has not been widely applied in ASR, research by Yang et al.~\cite{Yang2021Decentralizing} has shown potential in combining QCNN with other
 
-\subsection{Resource}
-\subsubsection{Dataset}
+\section{Resource}
+\subsection{Dataset}
 The dataset used for training and evaluating the speech recognition system consists of a series of Vietnamese conversations collected from various sources. These data sources include natural conversations, group discussions, podcasts, lectures, as well as direct interviews. The dataset reflects the diversity of voices, expressions, and speaking speeds of individual speakers, which helps the model learn the phonetic, prosodic, and pronunciation features of speakers in various contexts.
 
-\subsubsection{Descriptive Statistics}
+\subsection{Descriptive Statistics}
 The total size of the dataset is 15GB, with many measurements listed below:
 \begin{table}[h]
     \centering
@@ -123,8 +123,43 @@ The total size of the dataset is 15GB, with many measurements listed below:
         \hline
     \end{tabular}
 \end{table}
-\subsection{Methodology}
-\subsubsection{Hidden Markov Model (HMM) - Mel Frequency Cepstral Coefficients (MFCCs)}
+\section{Background}
+\begin{figure}[H]
+    \centering
+    \resizebox{0.55\textwidth}{!}{%
+        \begin{tikzpicture}[
+            node distance=1.0cm,
+            every node/.style={font=\small},
+            box/.style={draw, rounded corners, minimum width=2.5cm, minimum height=1.3cm, align=center, fill=cyan!20},
+            line/.style={draw, thick, -{Stealth}}
+            ]
+
+            % Nodes
+            \node[fill=blue!10] (input) {Input Speech Signal};
+            \node[box, fill=green!10, right=of input] (feature) {Feature Extraction};
+            \node[box, fill=orange!10, right=of feature] (model) {Model Processing};
+            \node[fill=red!10, right=of model] (output) {Speaker Identity};
+
+            % Arrows
+            \draw[line] (input) -- (feature);
+            \draw[line] (feature) -- (model);
+            \draw[line] (model) -- (output);
+
+        \end{tikzpicture}%
+    }
+    \label{fig:speaker_identification_pipeline}
+    \caption{Speaker Identification Pipeline}
+\end{figure}
+
+An ASR system identification speaker. Given an input audio \(x\), the ASR model \(f(\cdot)\) will find the best fit speaker with the feature of the speaker. The typical architecture
+of the ASR system is illustrated in figure~\ref{fig:speaker_identification_pipeline}, he first step, \textbf{feature extraction},
+captures the acoustic characteristics of the input speech signal. Traditional systems often rely on \textbf{MFCC} to extract time-frequency representations of speech,
+while modern systems have adopted more advanced techniques, such as \textbf{XVector}, \textbf{DVector}, and \textbf{Wavelet}, which offer enhanced representations of
+speaker traits in different domains. In the next phase, \textbf{model processing}, the extracted features or raw spectrogram are fed into models such as \textbf{Hidden Markov Models (HMM)},
+\textbf{Recurrent Neural Networks (RNN)}. These models map the features to an intermediate representation,
+enabling accurate speaker identification. \cite{davis1980comparison, Snyder2018Xvectors,wan2018dvector,graves2013speech}.
+
+\subsection{Hidden Markov Model (HMM)}
 HMM is a probabilistic model used to describe a sequence of observations $O = \{o_1, o_2, ..., o_T\}$ through a set of hidden states $Q = \{q_1, q_2, ..., q_N\}$.
 
 An HMM is defined by three main parameters:
@@ -150,50 +185,23 @@ To train the HMM, the Baum-Welch algorithm (a variant of Expectation-Maximizatio
     a_{ij} = \frac{\sum_{t=1}^{T-1} P(q_t = i, q_{t+1} = j \mid O, \lambda)}{\sum_{t=1}^{T-1} P(q_t = i \mid O, \lambda)}
 \end{equation}
 
-Mel-Frequency Cepstral Coefficients (MFCC) are widely used in ASR systems to extract speech features by mimicking human auditory perception. The analog speech signal is first digitized, then passed through a high-pass filter and windowed to minimize noise and spectral leakage. The Discrete Fourier Transform (DFT) converts the signal to the frequency domain, which is then mapped to the Mel scale. A logarithmic function is applied to compress the dynamic range, and the Discrete Cosine Transform (DCT) converts this to the cepstral domain. Finally, first- and second-order derivatives ($\Delta$, $\Delta^2$) are added to capture temporal dynamics.
+\subsection{Recurrent Neural Networks (RNNs)}
+
+Recurrent Neural Networks (RNNs) are widely used in ASR systems due to their ability to model temporal dependencies in sequential data. Unlike feedforward networks, RNNs maintain a hidden state that captures context from previous time steps, making them suitable for processing variable-length speech signals. Variants such as Long Short-Term Memory (LSTM) and Gated Recurrent Units (GRU) have been shown to effectively capture long-range dependencies and improve recognition performance \cite{graves2013speech}.
 
 
-\begin{figure}[H]
-    \centering
-    \resizebox{0.45\textwidth}{!}{%
-        \begin{tikzpicture}[
-            node distance=0.8cm and 1.4cm,
-            every node/.style={font=\small},
-            box/.style={draw, rounded corners, minimum width=2.5cm, minimum height=1cm, align=center},
-            line/.style={draw, thick, -{Stealth}}
-            ]
 
-            % Nodes
-            \node[box] (adc) {A/D\\conversion};
-            \node[box, right=of adc] (pre) {Preemphasis};
-            \node[box, right=of pre] (win) {Windowing};
-            \node[box, right=of win] (dft) {FFT};
-            \node[box, below=of dft] (mel) {Mel\\filterbank};
-            \node[box, below=of mel] (log) {log()};
-            \node[box, below=of log] (idft) {IDFT};
-            \node[box, below=of idft] (dyn) {Dynamic\\features};
-            \node[box, left=of dyn] (feat) {Feature\\Transform};
 
-            % Energy line
-            \node[coordinate, left=1cm of mel] (energyanchor) {};
-            \draw[line] (win) |- node[near end, left] {energy} (energyanchor) |- (dyn);
+\subsection{Mel Frequency Cepstral Coefficients (MFCCs)}
+Mel-Frequency Cepstral Coefficients (MFCC) are widely used in ASR systems to extract speech features by
+mimicking human auditory perception. The analog speech signal is first digitized, then passed through a
+high-pass filter and windowed to minimize noise and spectral leakage. The Discrete Fourier Transform (DFT)
+converts the signal to the frequency domain, which is then mapped to the Mel scale. A logarithmic function
+is applied to compress the dynamic range, and the Discrete Cosine Transform (DCT) converts this to the cepstral
+domain. Finally, first- and second-order derivatives ($\Delta$, $\Delta^2$) are added to capture temporal dynamics. \cite{davis1980comparison}
 
-            % Connections
-            \draw[line] (adc) -- (pre);
-            \draw[line] (pre) -- (win);
-            \draw[line] (win) -- (dft);
-            \draw[line] (dft) -- (mel);
-            \draw[line] (mel) -- (log);
-            \draw[line] (log) -- (idft);
-            \draw[line] (idft) -- (dyn);
-            \draw[line] (dyn) -- (feat);
 
-        \end{tikzpicture}%
-    }
-    \caption{MFCC feature extraction pipeline}
-\end{figure}
-
-\subsection{Hidden Markov Models - Wavelet}
+\subsection{Wavelet}
 Wavelet Transform (WT) is a mathematical tool that provides a time-frequency representation of signals. Unlike the Fourier Transform, which only provides frequency information, the wavelet transform can represent both time and frequency information simultaneously. This makes it especially useful for analyzing non-stationary signals like speech.
 
 The Continuous Wavelet Transform of a signal $x(t)$ is defined as:
@@ -235,6 +243,44 @@ The MFCC extraction pipeline consists of the following steps:
     \item \textbf{Logarithm:} Compute the log energy of each filter output.
     \item \textbf{DCT:} Apply Discrete Cosine Transform to obtain decorrelated MFCCs.
 \end{itemize}
+
+
+\subsection{X-Vector}
+
+The X-Vector model is built upon a deep neural network and typically consists of the following
+components:
+
+\begin{itemize}
+    \item \textbf{Preprocessing layers}: These layers apply filtering operations to the input features,
+          generating localized representations.
+    \item \textbf{Frame-level layers}: A series of convolutional (CNN) or time
+          delay neural network (TDNN) layers extract features at the frame level.
+    \item \textbf{Statistics pooling layer}: Aggregates frame-level outputs
+          across the entire utterance using statistical functions (e.g., mean and standard deviation) to produce a fixed-dimensional representation.
+    \item \textbf{Speaker embedding layer}: Generates a fixed-length X-Vector
+          encoding speaker-specific information.
+\end{itemize}
+
+The X-Vector model is trained on large-scale speaker-labeled datasets using a softmax loss function for speaker classification.
+After training, speaker embeddings are extracted from the penultimate layer and can be used for downstream tasks such as speaker
+verification or clustering.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 \paragraph{Quantum Encoding}
 
