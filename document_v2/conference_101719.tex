@@ -159,6 +159,12 @@ speaker traits in different domains. In the next phase, \textbf{model processing
 \textbf{Recurrent Neural Networks (RNN)}. These models map the features to an intermediate representation,
 enabling accurate speaker identification. \cite{davis1980comparison, Snyder2018Xvectors,wan2018dvector,graves2013speech}.
 
+
+
+
+
+
+
 \subsection{Hidden Markov Model (HMM)}
 HMM is a probabilistic model used to describe a sequence of observations $O = \{o_1, o_2, ..., o_T\}$ through a set of hidden states $Q = \{q_1, q_2, ..., q_N\}$.
 
@@ -185,12 +191,17 @@ To train the HMM, the Baum-Welch algorithm (a variant of Expectation-Maximizatio
     a_{ij} = \frac{\sum_{t=1}^{T-1} P(q_t = i, q_{t+1} = j \mid O, \lambda)}{\sum_{t=1}^{T-1} P(q_t = i \mid O, \lambda)}
 \end{equation}
 
+
+
+
+
+
+
+
+
 \subsection{Recurrent Neural Networks (RNNs)}
 
 Recurrent Neural Networks (RNNs) are widely used in ASR systems due to their ability to model temporal dependencies in sequential data. Unlike feedforward networks, RNNs maintain a hidden state that captures context from previous time steps, making them suitable for processing variable-length speech signals. Variants such as Long Short-Term Memory (LSTM) and Gated Recurrent Units (GRU) have been shown to effectively capture long-range dependencies and improve recognition performance \cite{graves2013speech}.
-
-
-
 
 \subsection{Mel Frequency Cepstral Coefficients (MFCCs)}
 Mel-Frequency Cepstral Coefficients (MFCC) are widely used in ASR systems to extract speech features by
@@ -201,32 +212,49 @@ is applied to compress the dynamic range, and the Discrete Cosine Transform (DCT
 domain. Finally, first- and second-order derivatives ($\Delta$, $\Delta^2$) are added to capture temporal dynamics. \cite{davis1980comparison}
 
 
+
+
+
+
+
+
+
+
+
+
+
 \subsection{Wavelet}
-Wavelet Transform (WT) is a mathematical tool that provides a time-frequency representation of signals. Unlike the Fourier Transform, which only provides frequency information, the wavelet transform can represent both time and frequency information simultaneously. This makes it especially useful for analyzing non-stationary signals like speech.
 
-The Continuous Wavelet Transform of a signal $x(t)$ is defined as:
+In this work, we use the Discrete Wavelet Transform (DWT) to extract features
+from audio signals for speaker identification. Unlike the Fourier Transform,
+which only captures frequency content, the DWT provides both time and frequency information, making it suitable for analyzing non-stationary signals like speech.
 
-\[
-    W(a, b) = \int_{-\infty}^{\infty} x(t) \frac{1}{\sqrt{|a|}} \psi\left(\frac{t - b}{a} \right) dt
-\]
+Given an input signal, the DWT decomposes it into approximation and detail
+coefficients at multiple levels using a pair of low-pass and high-pass filters followed by downsampling. This hierarchical decomposition allows for capturing transient and localized features in speech.
 
-where:
-\begin{itemize}
-    \item $a$ is the scale parameter (related to frequency),
-    \item $b$ is the translation parameter (related to time),
-    \item $\psi(t)$ is the mother wavelet.
-\end{itemize}
-
-\paragraph{Discrete Wavelet Transform}
-The DWT is a sampled version of the CWT and is more suitable for implementation in digital systems. It decomposes a signal into approximation and detail coefficients using filter banks. The signal is passed through a series of low-pass and high-pass filters followed by downsampling. \cite{tufekci2000dwt}
-
-\paragraph{HMM and Wavelet-based Features}
-We can replace MFCCs with the Wavelet coefficients in the observation vectors used in HMM training and decoding.
+We use the Daubechies-4 (db4) wavelet and apply the transform up to level 1.
+From each set of wavelet coefficients, we extract statistical features such as mean, standard deviation, max, min, median, and energy. These features serve as inputs for a Gaussian Hidden Markov Model (HMM) classifier or Recurent Neural Network (RNN). \cite{tufekci2000dwt}
 
 
-\subsubsection{Quantum Convolutional Neural Network (QCNN) - Mel Frequency Cepstral Coefficients (MFCCs)}
 
-In this approach, Mel-Frequency Cepstral Coefficients (MFCCs) are used as the input features to a Quantum Convolutional Neural Network (QCNN). MFCCs are effective in capturing the spectral characteristics of speech signals and are widely used in speaker recognition tasks.
+
+
+
+
+
+
+
+
+
+
+
+\subsubsection{Quantum Convolutional Neural Network (QCNN) - Mel Frequency Cepstral
+    Coefficients (MFCCs)}
+
+In this approach, Mel-Frequency Cepstral Coefficients (MFCCs) are used as the input
+features to a Quantum Convolutional Neural Network (QCNN). MFCCs are effective in
+capturing the spectral characteristics of speech signals and are widely used in
+speaker recognition tasks.
 
 \paragraph{MFCC Extraction}
 
@@ -237,7 +265,8 @@ The MFCC extraction pipeline consists of the following steps:
           \[
               H(z) = 1 - \alpha z^{-1}, \quad \alpha \approx 0.95
           \]
-    \item \textbf{Framing and Windowing:} Divide the signal into overlapping frames and apply a window function (e.g., Hamming).
+    \item \textbf{Framing and Windowing:} Divide the signal into overlapping frames
+          and apply a window function (e.g., Hamming).
     \item \textbf{FFT:} Convert each frame to the frequency domain.
     \item \textbf{Mel Filter Bank:} Apply a bank of filters spaced in the mel scale.
     \item \textbf{Logarithm:} Compute the log energy of each filter output.
@@ -245,33 +274,61 @@ The MFCC extraction pipeline consists of the following steps:
 \end{itemize}
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 \subsection{X-Vector}
 
-The X-Vector model is built upon a deep neural network and typically consists of the following
-components:
+The X-Vector model uses a deep neural network to generate speaker embeddings. It consists of:
 
-\begin{itemize}
-    \item \textbf{Preprocessing layers}: These layers apply filtering operations to the input features,
-          generating localized representations.
-    \item \textbf{Frame-level layers}: A series of convolutional (CNN) or time
-          delay neural network (TDNN) layers extract features at the frame level.
-    \item \textbf{Statistics pooling layer}: Aggregates frame-level outputs
-          across the entire utterance using statistical functions (e.g., mean and standard deviation) to produce a fixed-dimensional representation.
-    \item \textbf{Speaker embedding layer}: Generates a fixed-length X-Vector
-          encoding speaker-specific information.
-\end{itemize}
+\begin{itemize} \item \textbf{Preprocessing}: Filters input features for localization.
+    \item \textbf{Frame-level layers}: Convolutional or TDNN layers extract
+          frame-level features. \item \textbf{Statistics pooling}: Aggregates
+          features across the utterance using statistics (e.g., mean, standard deviation).
+    \item \textbf{Speaker embedding}: Produces a fixed-length X-Vector
+          representing speaker-specific information. \end{itemize}
 
-The X-Vector model is trained on large-scale speaker-labeled datasets using a softmax loss function for speaker classification.
-After training, speaker embeddings are extracted from the penultimate layer and can be used for downstream tasks such as speaker
-verification or clustering.
+
+In this study, we use the pre-trained X-Vector model from the \texttt{SpeechBrain}
+library to extract speech features from audio segments. The X-Vector model
+is based on a deep neural network architecture, trained on large
+datasets: VoxCeleb to learn feature vector representations
+for individual speakers.
 
 
 
 
+\subsection{D-Vector}
+
+The \textbf{D-Vector} is a speaker embedding method that captures speaker-specific
+characteristics from short speech segments. It is typically extracted from the
+bottleneck or penultimate layer of a deep neural network trained for speaker
+classification. These embeddings are widely used in speaker verification,
+diarization, and voice cloning tasks due to their ability to represent speaker
+identity compactly and effectively.
+
+As introduced by Variani et al.~\cite{variani2014deep}, the D-Vector system employs
+a deep neural network with a softmax output layer to classify speakers, and the
+output of an intermediate layer is used as the speaker embedding.
 
 
-
-
+In this paper, we use the SpeechBrain's SpeakerRecognition class to load the pre-trained
+ECAPA-TDNN model. This model is designed to extract high-quality speaker embeddings.
+Then using the Hidden Markov Models, Recurrent Neural Network,
+Quantum Convolutional Neural Network to perform training.
 
 
 
