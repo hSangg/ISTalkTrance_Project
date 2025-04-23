@@ -339,40 +339,103 @@ Quantum Convolutional Neural Network to perform training.
 
 
 
-\paragraph{Quantum Encoding}
+\section{Methodology}
 
-The MFCC vectors are normalized and encoded into a quantum state using angle encoding (specifically \( RY \) rotations):
+We present our proposed models for speaker identification, which incorporate a novel Quantum Convolutional Neural Network (QCNN) architecture, along with a hybrid model that combines traditional Hidden Markov Models (HMM) and QCNN. Unlike conventional methods like RNNs or HMMs that rely on standard neural network architectures, our approach leverages quantum-enhanced processing to better capture both temporal and spectral features in speech signals.
 
-\begin{equation}
-    |\psi\rangle = \bigotimes_{k=1}^{n} RY(x_k) |0\rangle
-\end{equation}
+\subsection{Overview}
 
-\paragraph{QCNN Architecture}
+The overall pipeline consists of the following stages: audio preprocessing, feature extraction (MFCC, Wavelet, X-vector or D-Vector), quantum encoding, QCNN modeling, and speaker classification. For the hybrid approach, we introduce a post processing stage using Hidden Markov Models (HMMs) to capture temporal consistency in speaker transitions. Figure~\ref{fig:pipeline} illustrates the overall system architecture.
+\tikzset{
+  block/.style = {
+    rectangle, draw=black, fill=blue!10, 
+    rounded corners, minimum height=1.2em, minimum width=6em,
+    font=\scriptsize, text centered, text width=6em
+  },
+  line/.style = {draw, thick, -{Latex[length=2mm]}, shorten >=2pt},
+  optional/.style = {block, fill=orange!20},
+  output/.style = {block, fill=green!20}
+}
+\begin{figure}[ht]
+    \centering
+    \begin{tikzpicture}[node distance=0.9cm and 0.9cm]
+    
+      % Top to bottom
+      \node[block] (audio) {Audio};
+      \node[block, right=of audio] (pre) {Preprocessing};
+      \node[block, right=of pre] (feat) {Feature Extraction};
+    
+      % Left to right
+      \node[block, below=of feat] (encode) {Quantum Encoding};
+      \node[block, below=of encode] (qcnn) {QCNN};
+      \node[optional, below=of qcnn] (hmm) {HMM};
+      \node[output, left=1.8cm of hmm] (out) {Speaker Prediction};
+    
+      % Edges
+      \path[line] (audio) -- (pre);
+      \path[line] (pre) -- (feat);
+      \path[line] (feat) -- (encode);
+      \path[line] (encode) -- (qcnn);
+      \path[line] (qcnn) -- (out);
+      \path[line] (qcnn) -- (hmm);
+      \path[line] (hmm) -- (out);    
 
-The QCNN consists of alternating layers of quantum convolution and pooling operations followed by a variational layer. The general structure is:
+    \end{tikzpicture}
+    \caption{Speaker identification pipeline with quantum-classical hybrid model.}
+    \label{fig:pipeline}
+    \end{figure}
+\subsection{Feature Extraction}
 
-\begin{equation}
-    |\phi\rangle = U_{\text{QCNN}} |\psi\rangle = (U_{\text{var}} \cdot U_{\text{pool}} \cdot U_{\text{conv}}) |\psi\rangle
-\end{equation}
+We use some feature extractors such as Mel Frequency Cepstral Coefficients (MFCCs), Wavelet transform, X-Vectors, D-Vectors to extract features from raw audio segments corresponding to each speaker. In experiments with X-Vectors and D-Vectors, we use a pre-trained speaker model from SpeechBrain to capture high-level speaker characteristics.
 
-\begin{itemize}
-    \item \textbf{Quantum Convolution:} Apply local entangling unitaries:
-          \[
-              U^{(i,j)}_{\text{conv}} = RZ_i(\theta) \cdot CX_{ij} \cdot RZ_j(\phi) \cdot CX_{ji} \cdot RZ_i(\lambda)
-          \]
-    \item \textbf{Quantum Pooling:} Perform controlled unitary operations or partial measurements to reduce the number of active qubits.
-    \item \textbf{Variational Layer:} Apply trainable unitaries to remaining qubits for classification.
-\end{itemize}
+\subsection{Quantum Encoding and Circuit Design}
+This section represent the quantum feature mapping process. Our quantum circuit approach combines principles of quantum encoding with randomized parameterization. The circuit operates in two distinct phases:
 
-\paragraph{Measurement and Output}
+\subsubsection{Initial State Preparation}
+We use Hadamard gate to init each qubit in a superposition state, then apply randomly parameterized rotation:
+\[
+|\psi_{\text{init}}^{(i)}\rangle = RY(\theta_i) \cdot H |0\rangle
+\]
+where $\theta_i \sim \mathcal{U}(-\pi, \pi)$ is sampled from a uniform distribution. This applies to all qubits $i \in \{0, 1, \ldots, n-1\}$ where $n=7$ is the total number of qubits.
 
-At the end of the QCNN, selected qubits are measured using Pauli-Z expectation:
+\subsubsection{Entanglement Layer}
+Adjacent qubits are entangled using CNOT gates, and also some additional random rotations are applied to target qubits:
+\[
+|\psi_{\text{ent}}^{(i,i+1)}\rangle = RY(\phi_{i+1}) \cdot \text{CNOT}_{i,i+1} |\psi_{\text{init}}\rangle
+\]
+where $\phi_{i+1} \sim \mathcal{U}(-\pi, \pi)$ is also sampled from a uniform distribution. This entanglement structure is applied sequentially for $i \in \{0, 1, \ldots, n-2\}$.
 
-\begin{equation}
-    \langle Z \rangle = \langle \phi | Z | \phi \rangle
-\end{equation}
+The complete quantum state preparation can be expressed as:
+\[
+|\psi_{\text{out}}\rangle = \prod_{i=0}^{n-2} U_{\text{ent}}^{(i,i+1)} \prod_{i=0}^{n-1} U_{\text{init}}^{(i)} |0\rangle^{\otimes n}
+\]
 
-The measured values are used to compute prediction probabilities or classification scores. Training is done by minimizing a loss function such as cross-entropy or MSE using gradient-based optimizers.
+\subsubsection{Measurement}
+For classification, we measure the expectation values of Pauli-Z operators on each qubit:
+\[
+\langle Z_i \rangle = \langle\psi_{\text{out}}|Z_i|\psi_{\text{out}}\rangle, \quad i \in \{0,1,2,3,4,5,6\}
+\]
+
+While circuit accepts an inputs parameter, our implementation uses random parameterization rather than direct encoding of input features. This approach allows us to explore the quantum feature space through stochastic sampling, which can be advantageous for certain classification tasks.
+
+\subsection{Quantum Convolutional Neural Network (QCNN)}
+
+The QCNN model consists of alternating quantum convolution and pooling layers followed by a variational layer for classification. Each convolutional unit applies a fixed entangling circuit to local qubit pairs, defined as:
+\[
+U^{(i,j)}_{\text{conv}} = RZ_i(\theta) \cdot CX_{ij} \cdot RZ_j(\phi) \cdot CX_{ji} \cdot RZ_i(\lambda)
+\]
+
+Pooling layers reduce the number of qubits to minimize data size, Quantum aggregation typically uses qubit measurements or control gates to discard unimportant information. A final variational block applies trainable rotations and entanglements to the reduced state, followed by measurement on selected qubits to obtain classification logits.
+
+\subsection{Hybrid QCNN + HMM Model}
+
+We propose a hybrid architecture that combines Quantum Convolutional Neural Networks (QCNN) with Hidden Markov Models (HMM). In this approach, we will not use QCNN as a standalone model, but we will use it to transform features extracted by standard feature extractors (e.g., MFCC, D-Vector) through a combination of quantum convolution, entanglement, and pooling operations as mention in Sections \textit{Quantum Encoding and Circuit Design} and \textit{Quantum Convolutional Neural Network (QCNN)}. We will then combine these transformed features with the original extracted features. The transformed QCNN features act as high-level representations, while the original features retain lower-level spectral and temporal cues. Then we will use the combined features to train the HMM for speaker identification.
+
+Each hidden state in HMM represents a potential speaker identity, while the observation probabilities are computed using the enriched feature vectors. This combination allows the model to leverage both the discriminative power of quantum-enhanced feature transformation and the temporal consistency of HMMs, resulting in more robust speaker identification.
+
+\subsection{Training and Evaluation}
+
+Our proposed models are trained using a cross-entropy loss on speaker labels, with parameter-shift rules applied to compute quantum gradients. For the hybrid model, once the QCNN is trained, we use the Baum-Welch algorithm to train the HMM based on the combined features (original + transformed). Evaluation is performed through cross-validation, and we report accuracy, precision, recall, and F1-score on both held-out speakers and unseen audio segments to assess generalization and robustness.
 
 \bibliographystyle{IEEEtran}
 \bibliography{resource/references}
