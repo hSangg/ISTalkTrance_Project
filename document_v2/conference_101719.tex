@@ -123,14 +123,25 @@ The total size of the dataset is 15GB, with many measurements listed below:
         \hline
     \end{tabular}
 \end{table}
+
+
+
+
+
+
 \section{Background}
+
+
+
+
+
 \begin{figure}[H]
     \centering
     \resizebox{0.55\textwidth}{!}{%
         \begin{tikzpicture}[
-            node distance=1.0cm,
+            node distance=0.5cm,
             every node/.style={font=\small},
-            box/.style={draw, rounded corners, minimum width=2.5cm, minimum height=1.3cm, align=center, fill=cyan!20},
+            box/.style={draw, rounded corners, minimum width=1.5cm, minimum height=1.0cm, align=center, fill=cyan!20},
             line/.style={draw, thick, -{Stealth}}
             ]
 
@@ -151,8 +162,10 @@ The total size of the dataset is 15GB, with many measurements listed below:
     \caption{Speaker Identification Pipeline}
 \end{figure}
 
-An ASR system identification speaker. Given an input audio \(x\), the ASR model \(f(\cdot)\) will find the best fit speaker with the feature of the speaker. The typical architecture
-of the ASR system is illustrated in figure~\ref{fig:speaker_identification_pipeline}, he first step, \textbf{feature extraction},
+
+An Automatic Speech Recognition (ASR) system designed for speaker identification analyzes an input audio signal, denoted as $audio_x$.
+The ASR model, represented as $f(\cdot)$, aims to match the input with the most appropriate speaker profile based on the extracted voice features.
+In figure~\ref{fig:speaker_identification_pipeline}, he first step, \textbf{feature extraction},
 captures the acoustic characteristics of the input speech signal. Traditional systems often rely on \textbf{MFCC} to extract time-frequency representations of speech,
 while modern systems have adopted more advanced techniques, such as \textbf{XVector}, \textbf{DVector}, and \textbf{Wavelet}, which offer enhanced representations of
 speaker traits in different domains. In the next phase, \textbf{model processing}, the extracted features or raw spectrogram are fed into models such as \textbf{Hidden Markov Models (HMM)},
@@ -166,7 +179,7 @@ enabling accurate speaker identification. \cite{davis1980comparison, Snyder2018X
 
 
 \subsection{Hidden Markov Model (HMM)}
-HMM is a probabilistic model used to describe a sequence of observations $O = \{o_1, o_2, ..., o_T\}$ through a set of hidden states $Q = \{q_1, q_2, ..., q_N\}$.
+HMM is a probabilistic model used to describe a sequence of observations $O = \{o_1, o_2, ..., o_T\}$ through a set of hidden states $Q = \{q_1, q_2, ..., q_N\}$. In ASR
 
 An HMM is defined by three main parameters:
 \begin{itemize}
@@ -175,24 +188,10 @@ An HMM is defined by three main parameters:
     \item $\pi = [\pi_i]$: The initial state distribution, $\pi_i = P(q_1 = i)$.
 \end{itemize}
 
-In ASR, each word or phoneme can be modeled by an individual HMM. When a speech signal sequence is input, the goal is to find the optimal state sequence $Q^*$ that maximizes the observation probability:
-\begin{equation}
-    Q^* = \arg\max_Q P(O \mid Q, \lambda)
-\end{equation}
-where $\lambda = (A, B, \pi)$ are the parameters of the HMM.
-
-The Viterbi algorithm is essential for finding the most likely state sequence based on the HMM. The maximum probability for state $j$ at time $t$ is computed as:
-\begin{equation}
-    \delta_t(j) = \max_i \left[ \delta_{t-1}(i) a_{ij} \right] b_j(o_t)
-\end{equation}
-
-To train the HMM, the Baum-Welch algorithm (a variant of Expectation-Maximization) is used to estimate the parameters:
-\begin{equation}
-    a_{ij} = \frac{\sum_{t=1}^{T-1} P(q_t = i, q_{t+1} = j \mid O, \lambda)}{\sum_{t=1}^{T-1} P(q_t = i \mid O, \lambda)}
-\end{equation}
-
-
-
+In ASR, when a speech signal sequence is input, the goal is to find the optimal state sequence $Q^*$ that maximizes
+the observation probability. When \(N\) models for each speaker is created, the Viterbi algorithm is
+essential for finding the most likely state sequence based on the HMM \cite{ilyas2007speaker}.
+To train the HMM, the Baum-Welch algorithm (a variant of Expectation-Maximization) is used to estimate the parameters.
 
 
 
@@ -347,43 +346,43 @@ We present our proposed models for speaker identification, which incorporate a n
 
 The overall pipeline consists of the following stages: audio preprocessing, feature extraction (MFCC, Wavelet, X-vector or D-Vector), quantum encoding, QCNN modeling, and speaker classification. For the hybrid approach, we introduce a post processing stage using Hidden Markov Models (HMMs) to capture temporal consistency in speaker transitions. Figure~\ref{fig:pipeline} illustrates the overall system architecture.
 \tikzset{
-  block/.style = {
-    rectangle, draw=black, fill=blue!10, 
-    rounded corners, minimum height=1.2em, minimum width=6em,
-    font=\scriptsize, text centered, text width=6em
-  },
-  line/.style = {draw, thick, -{Latex[length=2mm]}, shorten >=2pt},
-  optional/.style = {block, fill=orange!20},
-  output/.style = {block, fill=green!20}
+block/.style = {
+        rectangle, draw=black, fill=blue!10,
+        rounded corners, minimum height=1.2em, minimum width=6em,
+        font=\scriptsize, text centered, text width=6em
+    },
+line/.style = {draw, thick, -{Latex[length=2mm]}, shorten >=2pt},
+optional/.style = {block, fill=orange!20},
+output/.style = {block, fill=green!20}
 }
 \begin{figure}[ht]
     \centering
     \begin{tikzpicture}[node distance=0.9cm and 0.9cm]
-    
-      % Top to bottom
-      \node[block] (audio) {Audio};
-      \node[block, right=of audio] (pre) {Preprocessing};
-      \node[block, right=of pre] (feat) {Feature Extraction};
-    
-      % Left to right
-      \node[block, below=of feat] (encode) {Quantum Encoding};
-      \node[block, below=of encode] (qcnn) {QCNN};
-      \node[optional, below=of qcnn] (hmm) {HMM};
-      \node[output, left=1.8cm of hmm] (out) {Speaker Prediction};
-    
-      % Edges
-      \path[line] (audio) -- (pre);
-      \path[line] (pre) -- (feat);
-      \path[line] (feat) -- (encode);
-      \path[line] (encode) -- (qcnn);
-      \path[line] (qcnn) -- (out);
-      \path[line] (qcnn) -- (hmm);
-      \path[line] (hmm) -- (out);    
+
+        % Top to bottom
+        \node[block] (audio) {Audio};
+        \node[block, right=of audio] (pre) {Preprocessing};
+        \node[block, right=of pre] (feat) {Feature Extraction};
+
+        % Left to right
+        \node[block, below=of feat] (encode) {Quantum Encoding};
+        \node[block, below=of encode] (qcnn) {QCNN};
+        \node[optional, below=of qcnn] (hmm) {HMM};
+        \node[output, left=1.8cm of hmm] (out) {Speaker Prediction};
+
+        % Edges
+        \path[line] (audio) -- (pre);
+        \path[line] (pre) -- (feat);
+        \path[line] (feat) -- (encode);
+        \path[line] (encode) -- (qcnn);
+        \path[line] (qcnn) -- (out);
+        \path[line] (qcnn) -- (hmm);
+        \path[line] (hmm) -- (out);
 
     \end{tikzpicture}
     \caption{Speaker identification pipeline with quantum-classical hybrid model.}
     \label{fig:pipeline}
-    \end{figure}
+\end{figure}
 \subsection{Feature Extraction}
 
 We use some feature extractors such as Mel Frequency Cepstral Coefficients (MFCCs), Wavelet transform, X-Vectors, D-Vectors to extract features from raw audio segments corresponding to each speaker. In experiments with X-Vectors and D-Vectors, we use a pre-trained speaker model from SpeechBrain to capture high-level speaker characteristics.
@@ -394,26 +393,26 @@ This section represent the quantum feature mapping process. Our quantum circuit 
 \subsubsection{Initial State Preparation}
 We use Hadamard gate to init each qubit in a superposition state, then apply randomly parameterized rotation:
 \[
-|\psi_{\text{init}}^{(i)}\rangle = RY(\theta_i) \cdot H |0\rangle
+    |\psi_{\text{init}}^{(i)}\rangle = RY(\theta_i) \cdot H |0\rangle
 \]
 where $\theta_i \sim \mathcal{U}(-\pi, \pi)$ is sampled from a uniform distribution. This applies to all qubits $i \in \{0, 1, \ldots, n-1\}$ where $n=7$ is the total number of qubits.
 
 \subsubsection{Entanglement Layer}
 Adjacent qubits are entangled using CNOT gates, and also some additional random rotations are applied to target qubits:
 \[
-|\psi_{\text{ent}}^{(i,i+1)}\rangle = RY(\phi_{i+1}) \cdot \text{CNOT}_{i,i+1} |\psi_{\text{init}}\rangle
+    |\psi_{\text{ent}}^{(i,i+1)}\rangle = RY(\phi_{i+1}) \cdot \text{CNOT}_{i,i+1} |\psi_{\text{init}}\rangle
 \]
 where $\phi_{i+1} \sim \mathcal{U}(-\pi, \pi)$ is also sampled from a uniform distribution. This entanglement structure is applied sequentially for $i \in \{0, 1, \ldots, n-2\}$.
 
 The complete quantum state preparation can be expressed as:
 \[
-|\psi_{\text{out}}\rangle = \prod_{i=0}^{n-2} U_{\text{ent}}^{(i,i+1)} \prod_{i=0}^{n-1} U_{\text{init}}^{(i)} |0\rangle^{\otimes n}
+    |\psi_{\text{out}}\rangle = \prod_{i=0}^{n-2} U_{\text{ent}}^{(i,i+1)} \prod_{i=0}^{n-1} U_{\text{init}}^{(i)} |0\rangle^{\otimes n}
 \]
 
 \subsubsection{Measurement}
 For classification, we measure the expectation values of Pauli-Z operators on each qubit:
 \[
-\langle Z_i \rangle = \langle\psi_{\text{out}}|Z_i|\psi_{\text{out}}\rangle, \quad i \in \{0,1,2,3,4,5,6\}
+    \langle Z_i \rangle = \langle\psi_{\text{out}}|Z_i|\psi_{\text{out}}\rangle, \quad i \in \{0,1,2,3,4,5,6\}
 \]
 
 While circuit accepts an inputs parameter, our implementation uses random parameterization rather than direct encoding of input features. This approach allows us to explore the quantum feature space through stochastic sampling, which can be advantageous for certain classification tasks.
@@ -422,7 +421,7 @@ While circuit accepts an inputs parameter, our implementation uses random parame
 
 The QCNN model consists of alternating quantum convolution and pooling layers followed by a variational layer for classification. Each convolutional unit applies a fixed entangling circuit to local qubit pairs, defined as:
 \[
-U^{(i,j)}_{\text{conv}} = RZ_i(\theta) \cdot CX_{ij} \cdot RZ_j(\phi) \cdot CX_{ji} \cdot RZ_i(\lambda)
+    U^{(i,j)}_{\text{conv}} = RZ_i(\theta) \cdot CX_{ij} \cdot RZ_j(\phi) \cdot CX_{ji} \cdot RZ_i(\lambda)
 \]
 
 Pooling layers reduce the number of qubits to minimize data size, Quantum aggregation typically uses qubit measurements or control gates to discard unimportant information. A final variational block applies trainable rotations and entanglements to the reduced state, followed by measurement on selected qubits to obtain classification logits.
