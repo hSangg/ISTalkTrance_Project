@@ -126,6 +126,9 @@ QCNN là một mô hình mới trong học sâu lượng tử, được đề xu
 % Mô hình X-Vector được huấn luyện trên dữ liệu giọng nói lớn, sử dụng chức năng mất mát softmax để phân loại người nói.
 % Sau khi huấn luyện, các vector đặc trưng được rút trích từ lớp embedding để sử dụng trong các tác vụ khác nhau.
 
+
+
+
 % \section{Tổng Quan về D-Vector}
 % \subsection{Giới thiệu}
 % Trong các hệ thống nhận dạng tiếng nói tự động (ASR) và nhận dạng người nói, việc trích xuất đặc trưng hiệu quả đóng vai trò quan trọng trong việc tối ưu hóa độ chính xác của mô hình. Các phương pháp truyền thống như Mel-Frequency Cepstral Coefficients (MFCC) hay i-Vector đã được sử dụng rộng rãi trong nhiều năm \cite{dehak2011front}, \cite{davis1980comparison}. Tuy nhiên, với sự phát triển mạnh mẽ của học sâu, các phương pháp mới như X-Vector đã được đề xuất và chứng minh hiệu quả vượt trội trong việc biểu diễn đặc trưng giọng nói \\cite{snyder2018x}.
@@ -145,28 +148,6 @@ QCNN là một mô hình mới trong học sâu lượng tử, được đề xu
 %     \item \textbf{Lớp đầu ra}: Tạo ra X-Vector có độ dài cố định, có thể được sử dụng để nhận dạng hoặc phân loại.
 % \end{itemize}
 
-% \subsubsection{Quy trình trích xuất X-Vector}
-
-% Quy trình trích xuất X-Vector gồm các bước sau:
-
-% \begin{enumerate}
-%     \item \textbf{Tiền xử lý dữ liệu}: Âm thanh đầu vào được chia thành các khung nhỏ, áp dụng kỹ thuật cửa sổ Hamming và trích xuất các đặc trưng cơ bản như MFCC.
-%     \item \textbf{Huấn luyện mạng nơ-ron}: Dữ liệu đầu vào được đưa vào mạng nơ-ron sâu để học các đặc trưng giọng nói quan trọng.
-%     \item \textbf{Tóm tắt thống kê}: Các lớp tổng hợp dữ liệu sẽ tính toán trung bình và phương sai của các đặc trưng, tạo thành một biểu diễn cố định.
-%     \item \textbf{Tạo X-Vector}: Đầu ra của lớp ẩn cuối cùng được lấy làm vector đặc trưng đại diện cho đoạn giọng nói.
-% \end{enumerate}
-
-
-% \subsubsection{Quy trình trích xuất X-Vector}
-
-% Quy trình trích xuất X-Vector gồm các bước sau:
-
-% \begin{enumerate}
-%     \item \textbf{Tiền xử lý dữ liệu}: Âm thanh đầu vào được chia thành các khung nhỏ, áp dụng kỹ thuật cửa sổ Hamming và trích xuất các đặc trưng cơ bản như MFCC.
-%     \item \textbf{Huấn luyện mạng nơ-ron}: Dữ liệu đầu vào được đưa vào mạng nơ-ron sâu để học các đặc trưng giọng nói quan trọng.
-%     \item \textbf{Tóm tắt thống kê}: Các lớp tổng hợp dữ liệu sẽ tính toán trung bình và phương sai của các đặc trưng, tạo thành một biểu diễn cố định.
-%     \item \textbf{Tạo X-Vector}: Đầu ra của lớp ẩn cuối cùng được lấy làm vector đặc trưng đại diện cho đoạn giọng nói.
-% \end{enumerate}
 
 
 
@@ -304,3 +285,41 @@ QCNN là một mô hình mới trong học sâu lượng tử, được đề xu
 
 % \end{thebibliography}
 \end{document}
+
+
+
+
+
+\subsubsection{Quantum Convolutional Neural Network (QCNN) - Mel Frequency Cepstral
+    Coefficients (MFCCs)}
+
+In this approach, Mel-Frequency Cepstral Coefficients (MFCCs) are used as the input
+features to a Quantum Convolutional Neural Network (QCNN). MFCCs are effective in
+capturing the spectral characteristics of speech signals and are widely used in
+speaker recognition tasks.
+
+\paragraph{MFCC Extraction}
+
+The MFCC extraction pipeline consists of the following steps:
+
+\begin{itemize}
+    \item \textbf{Pre-emphasis:} Apply a high-pass filter to amplify high frequencies:
+          \[
+              H(z) = 1 - \alpha z^{-1}, \quad \alpha \approx 0.95
+          \]
+    \item \textbf{Framing and Windowing:} Divide the signal into overlapping frames
+          and apply a window function (e.g., Hamming).
+    \item \textbf{FFT:} Convert each frame to the frequency domain.
+    \item \textbf{Mel Filter Bank:} Apply a bank of filters spaced in the mel scale.
+    \item \textbf{Logarithm:} Compute the log energy of each filter output.
+    \item \textbf{DCT:} Apply Discrete Cosine Transform to obtain decorrelated MFCCs.
+\end{itemize}
+
+
+
+
+
+
+
+
+

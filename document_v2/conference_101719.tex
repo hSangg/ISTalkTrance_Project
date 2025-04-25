@@ -1,0 +1,470 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[vietnamese,english]{babel}
+\usepackage{tikz}
+
+\usetikzlibrary{arrows.meta, positioning}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+    \makeatletter
+\newcommand{\linebreakand}{%
+  \end{@IEEEauthorhalign}
+  \hfill\mbox{}\par
+  \mbox{}\hfill\begin{@IEEEauthorhalign}
+}
+\makeatother
+\begin{document}
+
+
+\title{BUILDING A REAL-TIME SPEECH EXTRACTION, SUMMARIZATION, AND TRANSLATION SYSTEM THROUGH THE INTEGRATION OF MACHINE LEARNING MODELS\\
+}
+\author{
+    \IEEEauthorblockN{1\textsuperscript{st} Cao Hoài Sang}
+    \IEEEauthorblockA{\textit{Department of Information Systems} \\
+        \textit{University of Information Technology} \\
+        Ho Chi Minh City, Viet Nam \\
+        21522541@gm.uit.edu.vn}
+    %
+    \and
+    %
+    \IEEEauthorblockN{2\textsuperscript{nd} Thi Thành Công}
+    \IEEEauthorblockA{\textit{Department of Information Systems} \\
+        \textit{University of Information Technology} \\
+        Ho Chi Minh City, Viet Nam \\
+        21521897@gm.uit.edu.vn}
+    %
+    \linebreakand
+    \IEEEauthorblockN{3\textsuperscript{rd} Assoc. Prof. Nguyễn Đình Thuân}
+    \IEEEauthorblockA{\textit{Department of Information Systems} \\
+        \textit{University of Information Technology} \\
+        Ho Chi Minh City, Viet Nam \\
+        thuannd@hcmuit.edu.vn}
+    %
+    \and
+    \IEEEauthorblockN{4\textsuperscript{th} Nguyễn Minh Nhựt}
+    \IEEEauthorblockA{\textit{Department of Information Systems} \\
+        \textit{University of Information Technology} \\
+        Ho Chi Minh City, Viet Nam \\
+        nhutnm.17@grad.uit.edu.vn}
+}
+
+\maketitle
+
+\begin{abstract}
+    In the age of digital communication and telework, the need for real-time conversation processing becomes increasingly important. This study proposes an integrated system capable of speech separation, speaker recognition, individualized content summarization, and real-time voice translation, while preserving the original voice characteristics. The approach combines acoustic features such as MFCC, XVector and DVector and modern deep learning models such as RNN, GMM and Transformer. The system is trained and tested on the actual labeled conversation dataset. The results show that the system achieves high accuracy in discriminating speakers and summarizing content, while ensuring low latency suitable for real-time application.
+\end{abstract}
+
+
+\section{Introduction}
+In the context of increasingly common online meetings and interactions, the need for real-time speech processing and analysis has become urgent. Current speech recognition systems primarily focus on converting speech into text but do not fully support advanced functions such as speaker differentiation, individual conversation summarization, and real-time language translation.
+
+This research aims to develop a real-time speech processing system that integrates multiple functionalities: speaker identification, conversation analysis, and summarization on a per-person basis, while also translating speech into another language without losing the original voice characteristics. The system will apply modern deep learning models in combination with acoustic features to achieve high performance.
+
+
+
+\section{Related Work}
+
+In the field of real-time speech recognition and analysis, multiple approaches have been proposed with the aid of machine learning and deep learning techniques. This section presents an overview of the relevant approaches, divided into groups based on the characteristic methodology and the model used.
+
+\subsection{Mel-Frequency Cepstral Coefficients (MFCC)}
+
+MFCC is one of the most common features in speech signal processing. The article on the use of MFCC to extract characteristics for training HMM models (hidden Markov models) by Rabiner~\cite{rabiner1989tutorial} detailed the use of hidden Markov models (HMM) combined with MFCC characteristics for speech recognition.
+\subsection{Wavelet-based Features}
+
+Wavelet transform is a powerful tool used to exploit time and frequency information from audio signals. Wavelet shows good ability to handle sound in noisy or unstable environments. Although not as widely available as MFCC, wavelets have recently been applied to systems thanks to their powerful noise cancellation capabilities. Studies have shown that using wavelet transforms in feature extraction can improve the accuracy of speech recognition systems, particularly in environments with noise \cite{gupta2003robust, wang2008robust}.
+
+\subsection{X-vector and D-vector Embeddings}
+
+X-vectors and D-vectors are representations learned from audio data, often used for speaker recognition. X-vector systems often use DNN or TDNN networks to learn performances to improve speaker discrimination accuracy. These representations are widely used in modern processing, for example in the systems of Kaldi and SpeechBrain. Snyder et al.~\cite{Snyder2018Xvectors} introduced X-vector as a deep learning representation for speaker recognition. For D-vector, Wan et al.~\cite{Wan2018Generalized} proposed using the GE2E loss function for training, which improves performance in speaker recognition.
+
+\subsection{Hidden Markov Models (HMM)}
+
+HMM is the foundation of many traditional ASR systems. Rabiner \cite{rabiner1989tutorial} has proposed effective Viterbi training methods and algorithms for HMM in speech recognition. Hybrid systems such as in~\cite{voll2007hybrid, perero2022comparison} also show that combining HMM with neural networks improves accuracy in real-world environments.
+
+\subsection{Recurrent Neural Networks (RNN)}
+
+RNN is a popular model in ASR because it can capture temporal dependencies in speech data. LSTM and GRU variants help solve vanishing gradient problems and are effective in modeling long-term context. Systems like Deep Speech~\cite{hannun2014deep} and work from Graves et al.~\cite{graves2013speech} show that RNN-based models can achieve good results in end-to-end ASR tasks.
+
+\subsection{Quantum Convolutional Neural Networks (QCNN)}
+
+QCNN is a new model in quantum deep learning, proposed to take advantage of quantum properties to reduce the number of redundant parameters, focus on key characteristics, and enhance representability. Cong et al.~\cite{Cong2019QuantumCNN} introduced QCNN as a new quantum machine learning model, which combines with the characteristics of convolutional neural networks and quantum properties to classify quantum states. Although QCNN has not been widely applied in ASR, research by Yang et al.~\cite{Yang2021Decentralizing} has shown potential in combining QCNN with other
+
+\section{Background}
+
+
+
+
+
+\begin{figure}[H]
+    \centering
+    \resizebox{0.55\textwidth}{!}{%
+        \begin{tikzpicture}[
+            node distance=0.5cm,
+            every node/.style={font=\small},
+            box/.style={draw, rounded corners, minimum width=1.5cm, minimum height=1.0cm, align=center, fill=cyan!20},
+            line/.style={draw, thick, -{Stealth}}
+            ]
+
+            % Nodes
+            \node[fill=blue!10] (input) {Input Speech Signal};
+            \node[box, fill=green!10, right=of input] (feature) {Feature Extraction};
+            \node[box, fill=orange!10, right=of feature] (model) {Model Processing};
+            \node[fill=red!10, right=of model] (output) {Speaker Identity};
+
+            % Arrows
+            \draw[line] (input) -- (feature);
+            \draw[line] (feature) -- (model);
+            \draw[line] (model) -- (output);
+
+        \end{tikzpicture}%
+    }
+    \label{fig:speaker_identification_pipeline}
+    \caption{Speaker Identification Pipeline}
+\end{figure}
+
+
+An Automatic Speech Recognition (ASR) system designed for speaker identification analyzes an input audio signal, denoted as $audio_x$.
+The ASR model, represented as $f(\cdot)$, aims to match the input with the most appropriate speaker profile based on the extracted voice features.
+In figure~\ref{fig:speaker_identification_pipeline}, he first step, \textbf{feature extraction},
+captures the acoustic characteristics of the input speech signal. Traditional systems often rely on \textbf{MFCC} to extract time-frequency representations of speech,
+while modern systems have adopted more advanced techniques, such as \textbf{XVector}, \textbf{DVector}, and \textbf{Wavelet}, which offer enhanced representations of
+speaker traits in different domains. In the next phase, \textbf{model processing}, the extracted features or raw spectrogram are fed into models such as \textbf{Hidden Markov Models (HMM)},
+\textbf{Recurrent Neural Networks (RNN)}. These models map the features to an intermediate representation,
+enabling accurate speaker identification. \cite{davis1980comparison, Snyder2018Xvectors,wan2018dvector,graves2013speech}.
+
+
+
+
+
+
+
+\subsection{Hidden Markov Model (HMM)}
+HMM is a probabilistic model used to describe a sequence of observations $O = \{o_1, o_2, ..., o_T\}$ through a set of hidden states $Q = \{q_1, q_2, ..., q_N\}$. In ASR
+
+An HMM is defined by three main parameters:
+\begin{itemize}
+    \item $A = [a_{ij}]$: The state transition probability matrix, where $a_{ij} = P(q_{t+1} = j \mid q_t = i)$.
+    \item $B = [b_j(o_t)]$: The observation (output) probability, where $b_j(o_t) = P(o_t \mid q_t = j)$.
+    \item $\pi = [\pi_i]$: The initial state distribution, $\pi_i = P(q_1 = i)$.
+\end{itemize}
+
+In ASR, when a speech signal sequence is input, the goal is to find the optimal state sequence $Q^*$ that maximizes
+the observation probability. When \(N\) models for each speaker is created, the Viterbi algorithm is
+essential for finding the most likely state sequence based on the HMM \cite{ilyas2007speaker}.
+To train the HMM, the Baum-Welch algorithm (a variant of Expectation-Maximization) is used to estimate the parameters.
+
+
+
+
+
+
+\subsection{Recurrent Neural Networks (RNNs)}
+
+Recurrent Neural Networks (RNNs) are widely used in ASR systems due to their ability to model temporal dependencies in sequential data. Unlike feedforward networks, RNNs maintain a hidden state that captures context from previous time steps, making them suitable for processing variable-length speech signals. Variants such as Long Short-Term Memory (LSTM) and Gated Recurrent Units (GRU) have been shown to effectively capture long-range dependencies and improve recognition performance \cite{graves2013speech}.
+
+\subsection{Mel Frequency Cepstral Coefficients (MFCCs)}
+Mel-Frequency Cepstral Coefficients (MFCC) are widely used in ASR systems to extract speech features by
+mimicking human auditory perception. The analog speech signal is first digitized, then passed through a
+high-pass filter and windowed to minimize noise and spectral leakage. The Discrete Fourier Transform (DFT)
+converts the signal to the frequency domain, which is then mapped to the Mel scale. A logarithmic function
+is applied to compress the dynamic range, and the Discrete Cosine Transform (DCT) converts this to the cepstral
+domain. Finally, first- and second-order derivatives ($\Delta$, $\Delta^2$) are added to capture temporal dynamics. \cite{davis1980comparison}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\subsection{Wavelet}
+
+In this work, we use the Discrete Wavelet Transform (DWT) to extract features
+from audio signals for speaker identification. Unlike the Fourier Transform,
+which only captures frequency content, the DWT provides both time and frequency information, making it suitable for analyzing non-stationary signals like speech.
+
+Given an input signal, the DWT decomposes it into approximation and detail
+coefficients at multiple levels using a pair of low-pass and high-pass filters followed by downsampling. This hierarchical decomposition allows for capturing transient and localized features in speech.
+
+We use the Daubechies-4 (db4) wavelet and apply the transform up to level 1.
+From each set of wavelet coefficients, we extract statistical features such as mean, standard deviation, max, min, median, and energy. These features serve as inputs for a Gaussian Hidden Markov Model (HMM) classifier or Recurent Neural Network (RNN). \cite{tufekci2000dwt}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\subsection{X-Vector}
+
+The X-Vector model uses a deep neural network to generate speaker embeddings. It consists of:
+
+\begin{itemize} \item \textbf{Preprocessing}: Filters input features for localization.
+    \item \textbf{Frame-level layers}: Convolutional or TDNN layers extract
+          frame-level features. \item \textbf{Statistics pooling}: Aggregates
+          features across the utterance using statistics (e.g., mean, standard deviation).
+    \item \textbf{Speaker embedding}: Produces a fixed-length X-Vector
+          representing speaker-specific information. \end{itemize}
+
+
+In this study, we use the pre-trained X-Vector model from the \texttt{SpeechBrain}
+library to extract speech features from audio segments. The X-Vector model
+is based on a deep neural network architecture, trained on large
+datasets: VoxCeleb to learn feature vector representations
+for individual speakers.
+
+
+
+
+\subsection{D-Vector}
+
+The \textbf{D-Vector} is a speaker embedding method that captures speaker-specific
+characteristics from short speech segments. It is typically extracted from the
+bottleneck or penultimate layer of a deep neural network trained for speaker
+classification. These embeddings are widely used in speaker verification,
+diarization, and voice cloning tasks due to their ability to represent speaker
+identity compactly and effectively.
+
+As introduced by Variani et al.~\cite{variani2014deep}, the D-Vector system employs
+a deep neural network with a softmax output layer to classify speakers, and the
+output of an intermediate layer is used as the speaker embedding.
+
+
+In this paper, we use the SpeechBrain's SpeakerRecognition class to load the pre-trained
+ECAPA-TDNN model. This model is designed to extract high-quality speaker embeddings.
+Then using the Hidden Markov Models, Recurrent Neural Network,
+Quantum Convolutional Neural Network to perform training.
+
+
+
+
+
+
+
+
+
+
+\section{Methodology}
+
+We present our proposed models for speaker identification, which incorporate a novel Quantum Convolutional Neural Network (QCNN) architecture, along with a hybrid model that combines traditional Hidden Markov Models (HMM) and QCNN. Unlike conventional methods like RNNs or HMMs that rely on standard neural network architectures, our approach leverages quantum-enhanced processing to better capture both temporal and spectral features in speech signals.
+
+\subsection{Overview}
+
+The overall pipeline consists of the following stages: audio preprocessing, feature extraction (MFCC, Wavelet, X-vector or D-Vector), quantum encoding, QCNN modeling, and speaker classification. For the hybrid approach, we introduce a post processing stage using Hidden Markov Models (HMMs) to capture temporal consistency in speaker transitions. Figure~\ref{fig:pipeline} illustrates the overall system architecture.
+\tikzset{
+block/.style = {
+        rectangle, draw=black, fill=blue!10,
+        rounded corners, minimum height=1.2em, minimum width=6em,
+        font=\scriptsize, text centered, text width=6em
+    },
+line/.style = {draw, thick, -{Latex[length=2mm]}, shorten >=2pt},
+optional/.style = {block, fill=orange!20},
+output/.style = {block, fill=green!20}
+}
+\begin{figure}[ht]
+    \centering
+    \begin{tikzpicture}[node distance=0.9cm and 0.9cm]
+
+        % Top to bottom
+        \node[block] (audio) {Audio};
+        \node[block, right=of audio] (pre) {Preprocessing};
+        \node[block, right=of pre] (feat) {Feature Extraction};
+
+        % Left to right
+        \node[block, below=of feat] (encode) {Quantum Encoding};
+        \node[block, below=of encode] (qcnn) {QCNN};
+        \node[optional, below=of qcnn] (hmm) {HMM};
+        \node[output, left=1.8cm of hmm] (out) {Speaker Prediction};
+
+        % Edges
+        \path[line] (audio) -- (pre);
+        \path[line] (pre) -- (feat);
+        \path[line] (feat) -- (encode);
+        \path[line] (encode) -- (qcnn);
+        \path[line] (qcnn) -- (out);
+        \path[line] (qcnn) -- (hmm);
+        \path[line] (hmm) -- (out);
+
+    \end{tikzpicture}
+    \caption{Speaker identification pipeline with quantum-classical hybrid model.}
+    \label{fig:pipeline}
+\end{figure}
+\subsection{Feature Extraction}
+
+We use some feature extractors such as Mel Frequency Cepstral Coefficients (MFCCs), Wavelet transform, X-Vectors, D-Vectors to extract features from raw audio segments corresponding to each speaker. In experiments with X-Vectors and D-Vectors, we use a pre-trained speaker model from SpeechBrain to capture high-level speaker characteristics.
+
+\subsection{Quantum Encoding and Circuit Design}
+This section represent the quantum feature mapping process. Our quantum circuit approach combines principles of quantum encoding with randomized parameterization. The circuit operates in two distinct phases:
+
+\subsubsection{Initial State Preparation}
+We use Hadamard gate to init each qubit in a superposition state, then apply randomly parameterized rotation:
+\[
+    |\psi_{\text{init}}^{(i)}\rangle = RY(\theta_i) \cdot H |0\rangle
+\]
+where $\theta_i \sim \mathcal{U}(-\pi, \pi)$ is sampled from a uniform distribution. This applies to all qubits $i \in \{0, 1, \ldots, n-1\}$ where $n=7$ is the total number of qubits.
+
+\subsubsection{Entanglement Layer}
+Adjacent qubits are entangled using CNOT gates, and also some additional random rotations are applied to target qubits:
+\[
+    |\psi_{\text{ent}}^{(i,i+1)}\rangle = RY(\phi_{i+1}) \cdot \text{CNOT}_{i,i+1} |\psi_{\text{init}}\rangle
+\]
+where $\phi_{i+1} \sim \mathcal{U}(-\pi, \pi)$ is also sampled from a uniform distribution. This entanglement structure is applied sequentially for $i \in \{0, 1, \ldots, n-2\}$.
+
+The complete quantum state preparation can be expressed as:
+\[
+    |\psi_{\text{out}}\rangle = \prod_{i=0}^{n-2} U_{\text{ent}}^{(i,i+1)} \prod_{i=0}^{n-1} U_{\text{init}}^{(i)} |0\rangle^{\otimes n}
+\]
+
+\subsubsection{Measurement}
+For classification, we measure the expectation values of Pauli-Z operators on each qubit:
+\[
+    \langle Z_i \rangle = \langle\psi_{\text{out}}|Z_i|\psi_{\text{out}}\rangle, \quad i \in \{0,1,2,3,4,5,6\}
+\]
+
+While circuit accepts an inputs parameter, our implementation uses random parameterization rather than direct encoding of input features. This approach allows us to explore the quantum feature space through stochastic sampling, which can be advantageous for certain classification tasks.
+
+\subsection{Quantum Convolutional Neural Network (QCNN)}
+
+The QCNN model consists of alternating quantum convolution and pooling layers followed by a variational layer for classification. Each convolutional unit applies a fixed entangling circuit to local qubit pairs, defined as:
+\[
+    U^{(i,j)}_{\text{conv}} = RZ_i(\theta) \cdot CX_{ij} \cdot RZ_j(\phi) \cdot CX_{ji} \cdot RZ_i(\lambda)
+\]
+
+Pooling layers reduce the number of qubits to minimize data size, Quantum aggregation typically uses qubit measurements or control gates to discard unimportant information. A final variational block applies trainable rotations and entanglements to the reduced state, followed by measurement on selected qubits to obtain classification logits.
+
+\subsection{Hybrid QCNN + HMM Model}
+
+We propose a hybrid architecture that combines Quantum Convolutional Neural Networks (QCNN) with Hidden Markov Models (HMM). In this approach, we will not use QCNN as a standalone model, but we will use it to transform features extracted by standard feature extractors (e.g., MFCC, D-Vector) through a combination of quantum convolution, entanglement, and pooling operations as mention in Sections \textit{Quantum Encoding and Circuit Design} and \textit{Quantum Convolutional Neural Network (QCNN)}. We will then combine these transformed features with the original extracted features. The transformed QCNN features act as high-level representations, while the original features retain lower-level spectral and temporal cues. Then we will use the combined features to train the HMM for speaker identification.
+
+Each hidden state in HMM represents a potential speaker identity, while the observation probabilities are computed using the enriched feature vectors. This combination allows the model to leverage both the discriminative power of quantum-enhanced feature transformation and the temporal consistency of HMMs, resulting in more robust speaker identification.
+
+\subsection{Training and Evaluation}
+
+Our proposed models are trained using a cross-entropy loss on speaker labels, with parameter-shift rules applied to compute quantum gradients. For the hybrid model, once the QCNN is trained, we use the Baum-Welch algorithm to train the HMM based on the combined features (original + transformed). Evaluation is performed through cross-validation, and we report accuracy, precision, recall, and F1-score on both held-out speakers and unseen audio segments to assess generalization and robustness.
+
+
+\section{Experiments}
+\subsection{Experiment Setup}
+The dataset used for training and evaluating the speech recognition system consists of a series of Vietnamese conversations collected from various sources. These data sources include natural conversations, group discussions, podcasts, lectures, as well as direct interviews. The dataset reflects the diversity of voices, expressions, and speaking speeds of individual speakers, which helps the model learn the phonetic, prosodic, and pronunciation features of speakers in various contexts.
+
+The total size of the dataset is 15GB, with many measurements listed below:
+\begin{table}[h]
+    \centering
+    \caption{Overview of speech dataset statistics}
+    \begin{tabular}{|l|c|}
+        \hline
+        \textbf{Statistic}                  & \textbf{Value}               \\
+        \hline
+        Total number of speakers            & 83                           \\
+        Total number of dialogues           & 10,430                       \\
+        Number of speaker changes           & 751                          \\
+        Total number of audio files         & 85                           \\
+        Total number of script files (.txt) & 85                           \\
+        Total duration of dataset           & 64,608 seconds (17.93 hours) \\
+        Average dialogue length             & 6.19 seconds                 \\
+        Standard deviation of length        & 11.96 seconds                \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Evaluation Results}
+We use cross-validation to train and test many model–extractor combinations, and we obtained the results below:
+
+
+\begin{table*}[htbp]
+    \centering
+    \caption{Evaluation Results of Different ASR Models Across Folds}
+    \begin{tabular}{|l|c|c|c|c|c|}
+        \hline
+        \textbf{Model}       & \textbf{Fold} & \textbf{Accuracy (\%)} & \textbf{Precision (\%)} & \textbf{Recall (\%)} & \textbf{F1-score (\%)} \\
+        \hline
+        HMM - MFCC           & 1             & 49                     & 74                      & 69                   & 64                     \\
+                             & 2             & 55                     & 74                      & 73                   & 66                     \\
+                             & 3             & 48                     & 76                      & 71                   & 66                     \\
+        HMM - XVectors       & 1             & 66                     & 67                      & 59                   & 59                     \\
+                             & 2             & 71                     & 74                      & 62                   & 63                     \\
+                             & 3             & 67                     & 66                      & 56                   & 57                     \\
+        HMM - Wavelet        & 1             & 15                     & 23                      & 12                   & 11                     \\
+                             & 2             & 18                     & 27                      & 15                   & 14                     \\
+                             & 3             & 17                     & 22                      & 12                   & 13                     \\
+        HMM - DVectors       & 1             & 36                     & 4                       & 10                   & 5                      \\
+                             & 2             & 36                     & 4                       & 10                   & 5                      \\
+                             & 3             & 35                     & 4                       & 10                   & 5                      \\
+        RNN - MFCC           & 1             & 78                     & 59                      & 53                   & 54                     \\
+                             & 2             & 79                     & 70                      & 58                   & 59                     \\
+                             & 3             & 78                     & 63                      & 56                   & 57                     \\
+        RNN - XVectors       & 1             & 69                     & 27                      & 28                   & 25                     \\
+                             & 2             & 70                     & 34                      & 32                   & 30                     \\
+                             & 3             & 75                     & 39                      & 39                   & 37                     \\
+        RNN - Wavelet        & 1             & 39                     & 15                      & 14                   & 13                     \\
+                             & 2             & 39                     & 17                      & 15                   & 14                     \\
+                             & 3             & 39                     & 17                      & 16                   & 15                     \\
+        RNN - DVectors       & 1             & 86                     & 80                      & 74                   & 75                     \\
+                             & 2             & 86                     & 80                      & 73                   & 74                     \\
+                             & 3             & 86                     & 80                      & 74                   & 75                     \\
+        QCNN - MFCC          & 1             & 42                     & 6                       & 9                    & 7                      \\
+                             & 2             & 42                     & 6                       & 7                    & 5                      \\
+                             & 3             & 56                     & 36                      & 31                   & 30                     \\
+        QCNN - Wavelet       & 1             & 16                     & 4                       & 5                    & 3                      \\
+                             & 2             & 21                     & 7                       & 6                    & 4                      \\
+                             & 3             & 18                     & 4                       & 4                    & 3                      \\
+        QCNN - XVector       & 1             & 11                     & 0                       & 1                    & 0                      \\
+                             & 2             & 11                     & 0                       & 1                    & 0                      \\
+                             & 3             & 11                     & 0                       & 1                    & 0                      \\
+        QCNN - Dvector       & 1             & 44                     & 7                       & 10                   & 7                      \\
+                             & 2             & 49                     & 7                       & 13                   & 8                      \\
+                             & 3             & 48                     & 8                       & 13                   & 9                      \\
+        QCNN - HMM - MFCC    & 1             & 1                      & 2                       & 1                    & 1                      \\
+                             & 2             & 2                      & 2                       & 1                    & 1                      \\
+                             & 3             & 1                      & 2                       & 1                    & 1                      \\
+        QCNN - HMM - Wavelet & 1             & 5                      & 4                       & 11                   & 5                      \\
+                             & 2             & 5                      & 9                       & 11                   & 6                      \\
+                             & 3             & 8                      & 9                       & 14                   & 7                      \\
+        QCNN - HMM - XVector & 1             & 95                     & 96                      & 93                   & 94                     \\
+                             & 2             & 95                     & 96                      & 90                   & 92                     \\
+                             & 3             & 95                     & 97                      & 92                   & 94                     \\
+        QCNN - HMM - DVector & 1             & 97                     & 97                      & 95                   & 96                     \\
+                             & 2             & 97                     & 97                      & 92                   & 94                     \\
+                             & 3             & 97                     & 98                      & 94                   & 95                     \\
+        \hline
+    \end{tabular}
+\end{table*}
+
+
+
+
+\bibliographystyle{IEEEtran}
+\bibliography{resource/references}
+\end{document}
