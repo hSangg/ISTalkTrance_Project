@@ -12,6 +12,7 @@
 \usepackage[T5]{fontenc}
 \usepackage[vietnamese,english]{babel}
 \usepackage{tikz}
+
 \usetikzlibrary{arrows.meta, positioning}
 
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
@@ -98,36 +99,6 @@ RNN is a popular model in ASR because it can capture temporal dependencies in sp
 \subsection{Quantum Convolutional Neural Networks (QCNN)}
 
 QCNN is a new model in quantum deep learning, proposed to take advantage of quantum properties to reduce the number of redundant parameters, focus on key characteristics, and enhance representability. Cong et al.~\cite{Cong2019QuantumCNN} introduced QCNN as a new quantum machine learning model, which combines with the characteristics of convolutional neural networks and quantum properties to classify quantum states. Although QCNN has not been widely applied in ASR, research by Yang et al.~\cite{Yang2021Decentralizing} has shown potential in combining QCNN with other
-
-\section{Resource}
-\subsection{Dataset}
-The dataset used for training and evaluating the speech recognition system consists of a series of Vietnamese conversations collected from various sources. These data sources include natural conversations, group discussions, podcasts, lectures, as well as direct interviews. The dataset reflects the diversity of voices, expressions, and speaking speeds of individual speakers, which helps the model learn the phonetic, prosodic, and pronunciation features of speakers in various contexts.
-
-\subsection{Descriptive Statistics}
-The total size of the dataset is 15GB, with many measurements listed below:
-\begin{table}[h]
-    \centering
-    \caption{Overview of speech dataset statistics}
-    \begin{tabular}{|l|c|}
-        \hline
-        \textbf{Statistic}                  & \textbf{Value}               \\
-        \hline
-        Total number of speakers            & 83                           \\
-        Total number of dialogues           & 10,430                       \\
-        Number of speaker changes           & 751                          \\
-        Total number of audio files         & 85                           \\
-        Total number of script files (.txt) & 85                           \\
-        Total duration of dataset           & 64,608 seconds (17.93 hours) \\
-        Average dialogue length             & 6.19 seconds                 \\
-        Standard deviation of length        & 11.96 seconds                \\
-        \hline
-    \end{tabular}
-\end{table}
-
-
-
-
-
 
 \section{Background}
 
@@ -238,41 +209,6 @@ From each set of wavelet coefficients, we extract statistical features such as m
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-\subsubsection{Quantum Convolutional Neural Network (QCNN) - Mel Frequency Cepstral
-    Coefficients (MFCCs)}
-
-In this approach, Mel-Frequency Cepstral Coefficients (MFCCs) are used as the input
-features to a Quantum Convolutional Neural Network (QCNN). MFCCs are effective in
-capturing the spectral characteristics of speech signals and are widely used in
-speaker recognition tasks.
-
-\paragraph{MFCC Extraction}
-
-The MFCC extraction pipeline consists of the following steps:
-
-\begin{itemize}
-    \item \textbf{Pre-emphasis:} Apply a high-pass filter to amplify high frequencies:
-          \[
-              H(z) = 1 - \alpha z^{-1}, \quad \alpha \approx 0.95
-          \]
-    \item \textbf{Framing and Windowing:} Divide the signal into overlapping frames
-          and apply a window function (e.g., Hamming).
-    \item \textbf{FFT:} Convert each frame to the frequency domain.
-    \item \textbf{Mel Filter Bank:} Apply a bank of filters spaced in the mel scale.
-    \item \textbf{Logarithm:} Compute the log energy of each filter output.
-    \item \textbf{DCT:} Apply Discrete Cosine Transform to obtain decorrelated MFCCs.
-\end{itemize}
 
 
 
@@ -437,6 +373,97 @@ Each hidden state in HMM represents a potential speaker identity, while the obse
 \subsection{Training and Evaluation}
 
 Our proposed models are trained using a cross-entropy loss on speaker labels, with parameter-shift rules applied to compute quantum gradients. For the hybrid model, once the QCNN is trained, we use the Baum-Welch algorithm to train the HMM based on the combined features (original + transformed). Evaluation is performed through cross-validation, and we report accuracy, precision, recall, and F1-score on both held-out speakers and unseen audio segments to assess generalization and robustness.
+
+
+\section{Experiments}
+\subsection{Experiment Setup}
+The dataset used for training and evaluating the speech recognition system consists of a series of Vietnamese conversations collected from various sources. These data sources include natural conversations, group discussions, podcasts, lectures, as well as direct interviews. The dataset reflects the diversity of voices, expressions, and speaking speeds of individual speakers, which helps the model learn the phonetic, prosodic, and pronunciation features of speakers in various contexts.
+
+The total size of the dataset is 15GB, with many measurements listed below:
+\begin{table}[h]
+    \centering
+    \caption{Overview of speech dataset statistics}
+    \begin{tabular}{|l|c|}
+        \hline
+        \textbf{Statistic}                  & \textbf{Value}               \\
+        \hline
+        Total number of speakers            & 83                           \\
+        Total number of dialogues           & 10,430                       \\
+        Number of speaker changes           & 751                          \\
+        Total number of audio files         & 85                           \\
+        Total number of script files (.txt) & 85                           \\
+        Total duration of dataset           & 64,608 seconds (17.93 hours) \\
+        Average dialogue length             & 6.19 seconds                 \\
+        Standard deviation of length        & 11.96 seconds                \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Evaluation Results}
+We use cross-validation to train and test many model–extractor combinations, and we obtained the results below:
+
+
+\begin{table*}[htbp]
+    \centering
+    \caption{Evaluation Results of Different ASR Models Across Folds}
+    \begin{tabular}{|l|c|c|c|c|c|}
+        \hline
+        \textbf{Model}       & \textbf{Fold} & \textbf{Accuracy (\%)} & \textbf{Precision (\%)} & \textbf{Recall (\%)} & \textbf{F1-score (\%)} \\
+        \hline
+        HMM - MFCC           & 1             & 49                     & 74                      & 69                   & 64                     \\
+                             & 2             & 55                     & 74                      & 73                   & 66                     \\
+                             & 3             & 48                     & 76                      & 71                   & 66                     \\
+        HMM - XVectors       & 1             & 66                     & 67                      & 59                   & 59                     \\
+                             & 2             & 71                     & 74                      & 62                   & 63                     \\
+                             & 3             & 67                     & 66                      & 56                   & 57                     \\
+        HMM - Wavelet        & 1             & 15                     & 23                      & 12                   & 11                     \\
+                             & 2             & 18                     & 27                      & 15                   & 14                     \\
+                             & 3             & 17                     & 22                      & 12                   & 13                     \\
+        HMM - DVectors       & 1             & 36                     & 4                       & 10                   & 5                      \\
+                             & 2             & 36                     & 4                       & 10                   & 5                      \\
+                             & 3             & 35                     & 4                       & 10                   & 5                      \\
+        RNN - MFCC           & 1             & 78                     & 59                      & 53                   & 54                     \\
+                             & 2             & 79                     & 70                      & 58                   & 59                     \\
+                             & 3             & 78                     & 63                      & 56                   & 57                     \\
+        RNN - XVectors       & 1             & 69                     & 27                      & 28                   & 25                     \\
+                             & 2             & 70                     & 34                      & 32                   & 30                     \\
+                             & 3             & 75                     & 39                      & 39                   & 37                     \\
+        RNN - Wavelet        & 1             & 39                     & 15                      & 14                   & 13                     \\
+                             & 2             & 39                     & 17                      & 15                   & 14                     \\
+                             & 3             & 39                     & 17                      & 16                   & 15                     \\
+        RNN - DVectors       & 1             & 86                     & 80                      & 74                   & 75                     \\
+                             & 2             & 86                     & 80                      & 73                   & 74                     \\
+                             & 3             & 86                     & 80                      & 74                   & 75                     \\
+        QCNN - MFCC          & 1             & 42                     & 6                       & 9                    & 7                      \\
+                             & 2             & 42                     & 6                       & 7                    & 5                      \\
+                             & 3             & 56                     & 36                      & 31                   & 30                     \\
+        QCNN - Wavelet       & 1             & 16                     & 4                       & 5                    & 3                      \\
+                             & 2             & 21                     & 7                       & 6                    & 4                      \\
+                             & 3             & 18                     & 4                       & 4                    & 3                      \\
+        QCNN - XVector       & 1             & 11                     & 0                       & 1                    & 0                      \\
+                             & 2             & 11                     & 0                       & 1                    & 0                      \\
+                             & 3             & 11                     & 0                       & 1                    & 0                      \\
+        QCNN - Dvector       & 1             & 44                     & 7                       & 10                   & 7                      \\
+                             & 2             & 49                     & 7                       & 13                   & 8                      \\
+                             & 3             & 48                     & 8                       & 13                   & 9                      \\
+        QCNN - HMM - MFCC    & 1             & 1                      & 2                       & 1                    & 1                      \\
+                             & 2             & 2                      & 2                       & 1                    & 1                      \\
+                             & 3             & 1                      & 2                       & 1                    & 1                      \\
+        QCNN - HMM - Wavelet & 1             & 5                      & 4                       & 11                   & 5                      \\
+                             & 2             & 5                      & 9                       & 11                   & 6                      \\
+                             & 3             & 8                      & 9                       & 14                   & 7                      \\
+        QCNN - HMM - XVector & 1             & 95                     & 96                      & 93                   & 94                     \\
+                             & 2             & 95                     & 96                      & 90                   & 92                     \\
+                             & 3             & 95                     & 97                      & 92                   & 94                     \\
+        QCNN - HMM - DVector & 1             & 97                     & 97                      & 95                   & 96                     \\
+                             & 2             & 97                     & 97                      & 92                   & 94                     \\
+                             & 3             & 97                     & 98                      & 94                   & 95                     \\
+        \hline
+    \end{tabular}
+\end{table*}
+
+
+
 
 \bibliographystyle{IEEEtran}
 \bibliography{resource/references}

@@ -260,3 +260,41 @@ Trong bối cảnh các cuộc họp và tương tác trực tuyến ngày càng
 
 % \end{thebibliography}
 \end{document}
+
+
+
+
+
+\subsubsection{Quantum Convolutional Neural Network (QCNN) - Mel Frequency Cepstral
+    Coefficients (MFCCs)}
+
+In this approach, Mel-Frequency Cepstral Coefficients (MFCCs) are used as the input
+features to a Quantum Convolutional Neural Network (QCNN). MFCCs are effective in
+capturing the spectral characteristics of speech signals and are widely used in
+speaker recognition tasks.
+
+\paragraph{MFCC Extraction}
+
+The MFCC extraction pipeline consists of the following steps:
+
+\begin{itemize}
+    \item \textbf{Pre-emphasis:} Apply a high-pass filter to amplify high frequencies:
+          \[
+              H(z) = 1 - \alpha z^{-1}, \quad \alpha \approx 0.95
+          \]
+    \item \textbf{Framing and Windowing:} Divide the signal into overlapping frames
+          and apply a window function (e.g., Hamming).
+    \item \textbf{FFT:} Convert each frame to the frequency domain.
+    \item \textbf{Mel Filter Bank:} Apply a bank of filters spaced in the mel scale.
+    \item \textbf{Logarithm:} Compute the log energy of each filter output.
+    \item \textbf{DCT:} Apply Discrete Cosine Transform to obtain decorrelated MFCCs.
+\end{itemize}
+
+
+
+
+
+
+
+
+
