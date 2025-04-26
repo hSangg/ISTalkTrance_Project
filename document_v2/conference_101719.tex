@@ -12,6 +12,7 @@
 \usepackage[T5]{fontenc}
 \usepackage[vietnamese,english]{babel}
 \usepackage{tikz}
+\usepackage[table]{xcolor}
 
 \usetikzlibrary{arrows.meta, positioning}
 
@@ -400,12 +401,13 @@ The total size of the dataset is 15GB, with many measurements listed below:
 \end{table}
 
 \subsection{Evaluation Results}
-We use cross-validation to train and test many model–extractor combinations, and we obtained the results below:
+We use cross-validation to train and test many model–extractor combinations, and we obtained the results show in table \ref{tab:asr-results}.
 
 
 \begin{table*}[htbp]
     \centering
     \caption{Evaluation Results of Different ASR Models Across Folds}
+    \label{tab:asr-results}
     \begin{tabular}{|l|c|c|c|c|c|}
         \hline
         \textbf{Model}       & \textbf{Fold} & \textbf{Accuracy (\%)} & \textbf{Precision (\%)} & \textbf{Recall (\%)} & \textbf{F1-score (\%)} \\
@@ -455,16 +457,60 @@ We use cross-validation to train and test many model–extractor combinations, a
         QCNN - HMM - XVector & 1             & 95                     & 96                      & 93                   & 94                     \\
                              & 2             & 95                     & 96                      & 90                   & 92                     \\
                              & 3             & 95                     & 97                      & 92                   & 94                     \\
-        QCNN - HMM - DVector & 1             & 97                     & 97                      & 95                   & 96                     \\
-                             & 2             & 97                     & 97                      & 92                   & 94                     \\
-                             & 3             & 97                     & 98                      & 94                   & 95                     \\
+        \rowcolor{gray!20} QCNN - HMM - DVector & \textbf{1} & \textbf{97} & \textbf{97} & \textbf{95} & \textbf{96} \\
+        \rowcolor{gray!20}                      & \textbf{2} & \textbf{97} & \textbf{97} & \textbf{92} & \textbf{94} \\
+        \rowcolor{gray!20}                      & \textbf{3} & \textbf{97} & \textbf{98} & \textbf{94} & \textbf{95} \\
         \hline
     \end{tabular}
 \end{table*}
+\subsection{Comparison of Models and Discussion}
 
+Table~\ref{tab:asr-results} presents the performance of different ASR models evaluated across three cross-validation folds. From the results, it is evident that there are significant differences in performance depending on the feature extraction methods and the model architectures used.
+
+We experiments some traditional models like HMM combined with MFCC or Wavelet features achieved moderate accuracy, but their recall and F1-score remained low, indicating limited robustness in distinguishing between speakers. We then use pre-trained XVector and DVector features with HMM, that show a slight improvement in accuracy for XVector, but DVector alone performed poorly when used with HMM without any deep learning enhancement.
+
+RNN-based models generally outperformed the pure HMM-based approaches. The RNN + DVector model achieved a very high accuracy (up to 86\%) and consistent performance across folds, demonstrating the strength of the pretrained DVector embeddings in capturing speaker characteristics.
+
+QCNN-based models alone (without HMM) showed inconsistent results, especially when combined with MFCC or XVector features. However, when QCNN was combined with HMM, there was a noticeable performance boost, particularly for models using DVector and XVector features. Among them, the \textbf{QCNN + HMM + DVector} model consistently achieved the highest performance across all folds, with an average accuracy of \textbf{97\%}, precision of \textbf{97\%}, recall of \textbf{94\%}, and F1-score of \textbf{95\%}.
+
+This exceptional performance can be attributed to three key components:
+\begin{itemize}
+    \item \textbf{DVector embeddings} provide highly discriminative speaker features extracted using deep neural networks trained for speaker verification, capturing robust speaker characteristics even in short utterances.
+    \item \textbf{Quantum Convolutional Neural Networks (QCNN)} enhance the model’s ability to learn non-linear and high-dimensional patterns from DVector features, which may not be fully captured by traditional CNNs.
+    \item \textbf{Hidden Markov Models (HMM)} complement the QCNN by modeling temporal transitions in speech, which is effective in modeling and distinguishing speaker-specific vocal characteristics.
+\end{itemize}
+
+In summary, the combination of DVector embeddings, quantum-enhanced feature learning through QCNN, and temporal modeling via HMM offers a powerful and accurate architecture for speaker recognition tasks.
+
+\section{Conclusion}
+
+This paper presents a comparative study of multiple speaker identification models, combining a range of feature extraction methods (MFCC, Wavelet, XVector, DVector) with machine learning techniques such as HMM, RNN, and QCNN. Among all the evaluated models, the QCNN + HMM + DVector combination achieved the best overall performance, with an average accuracy of 97\% and an F1-score of 95\% across three folds (see Table~\ref{tab:asr-results}). These results highlight the strong synergy between deep speaker embeddings (DVector), quantum-inspired feature processing (QCNN), and sequential pattern modeling (HMM).
+
+\textbf{The main contributions} of this work are as follows:
+\begin{itemize}
+    \item We propose a hybrid speaker identification framework that leverages DVector-based embeddings, Quantum Convolutional Neural Networks (QCNN), and Hidden Markov Models (HMM).
+    \item We provide a comparative analysis against a wide range of baseline systems, highlighting the strength of quantum-enhanced architectures.
+    \item A custom dataset was constructed, and rigorous k-fold cross-validation was applied to ensure robust and fair evaluation.
+\end{itemize}
+
+\textbf{The limitations} of this work include:
+\begin{itemize}
+    \item The quantum model training remains computationally intensive and may take a long training period.
+    \item Evaluation was conducted under relatively clean and controlled audio conditions like conferences, tedtalks, podcasts, ..., without extensive testing in noisy or real-world environments.
+    \item Generalization to unseen speakers from entirely different distributions was not assessed in this study.
+\end{itemize}
+
+\textbf{Future work}:
+We aim to explore more diverse datasets, including multiple languages and mixed-language speech.
+Our future work also focuses on improving the model's performance in noisy environments or when
+the audio quality is low. On the technical side, we plan to deploy the model in real-time
+applications such as voice assistants or security systems, potentially combining it with
+emotion detection for more advanced and context-aware interactions
+
+In summary, our findings demonstrate the potential of integrating quantum-inspired learning with deep speaker representations for robust and accurate speaker identification, paving the way for more advanced speech-based technologies.
 
 
 
 \bibliographystyle{IEEEtran}
-\bibliography{resource/references}
+\bibliography{resource/references.bib}
 \end{document}
