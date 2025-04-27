@@ -109,7 +109,7 @@ QCNN is a new model in quantum deep learning, proposed to take advantage of quan
 
 \begin{figure}[H]
     \centering
-    \resizebox{0.55\textwidth}{!}{%
+    \resizebox{0.45\textwidth}{!}{%
         \begin{tikzpicture}[
             node distance=0.5cm,
             every node/.style={font=\small},
@@ -121,7 +121,7 @@ QCNN is a new model in quantum deep learning, proposed to take advantage of quan
             \node[fill=blue!10] (input) {Input Speech Signal};
             \node[box, fill=green!10, right=of input] (feature) {Feature Extraction};
             \node[box, fill=orange!10, right=of feature] (model) {Model Processing};
-            \node[fill=red!10, right=of model] (output) {Speaker Identity};
+            \node[fill=red!10, below=of model] (output) {Speaker Identity};
 
             % Arrows
             \draw[line] (input) -- (feature);
@@ -143,10 +143,6 @@ while modern systems have adopted more advanced techniques, such as \textbf{XVec
 speaker traits in different domains. In the next phase, \textbf{model processing}, the extracted features or raw spectrogram are fed into models such as \textbf{Hidden Markov Models (HMM)},
 \textbf{Recurrent Neural Networks (RNN)}. These models map the features to an intermediate representation,
 enabling accurate speaker identification. \cite{davis1980comparison, Snyder2018Xvectors,wan2018dvector,graves2013speech}.
-
-
-
-
 
 
 
@@ -378,8 +374,7 @@ Our proposed models are trained using a cross-entropy loss on speaker labels, wi
 
 \section{Experiments}
 \subsection{Experiment Setup}
-The dataset used for training and evaluating the speech recognition system consists of a series of Vietnamese conversations collected from various sources. These data sources include natural conversations, group discussions, podcasts, lectures, as well as direct interviews. The dataset reflects the diversity of voices, expressions, and speaking speeds of individual speakers, which helps the model learn the phonetic, prosodic, and pronunciation features of speakers in various contexts.
-
+We evaluated our proposed models using a curated Vietnamese speech dataset comprising various conversational contexts, including natural dialogues, group discussions, podcasts, lectures, and interviews.
 The total size of the dataset is 15GB, with many measurements listed below:
 \begin{table}[h]
     \centering
@@ -410,56 +405,56 @@ We use cross-validation to train and test many model–extractor combinations, a
     \label{tab:asr-results}
     \begin{tabular}{|l|c|c|c|c|c|}
         \hline
-        \textbf{Model}       & \textbf{Fold} & \textbf{Accuracy (\%)} & \textbf{Precision (\%)} & \textbf{Recall (\%)} & \textbf{F1-score (\%)} \\
+        \textbf{Model}                          & \textbf{Fold} & \textbf{Accuracy (\%)} & \textbf{Precision (\%)} & \textbf{Recall (\%)} & \textbf{F1-score (\%)} \\
         \hline
-        HMM - MFCC           & 1             & 49                     & 74                      & 69                   & 64                     \\
-                             & 2             & 55                     & 74                      & 73                   & 66                     \\
-                             & 3             & 48                     & 76                      & 71                   & 66                     \\
-        HMM - XVectors       & 1             & 66                     & 67                      & 59                   & 59                     \\
-                             & 2             & 71                     & 74                      & 62                   & 63                     \\
-                             & 3             & 67                     & 66                      & 56                   & 57                     \\
-        HMM - Wavelet        & 1             & 15                     & 23                      & 12                   & 11                     \\
-                             & 2             & 18                     & 27                      & 15                   & 14                     \\
-                             & 3             & 17                     & 22                      & 12                   & 13                     \\
-        HMM - DVectors       & 1             & 36                     & 4                       & 10                   & 5                      \\
-                             & 2             & 36                     & 4                       & 10                   & 5                      \\
-                             & 3             & 35                     & 4                       & 10                   & 5                      \\
-        RNN - MFCC           & 1             & 78                     & 59                      & 53                   & 54                     \\
-                             & 2             & 79                     & 70                      & 58                   & 59                     \\
-                             & 3             & 78                     & 63                      & 56                   & 57                     \\
-        RNN - XVectors       & 1             & 69                     & 27                      & 28                   & 25                     \\
-                             & 2             & 70                     & 34                      & 32                   & 30                     \\
-                             & 3             & 75                     & 39                      & 39                   & 37                     \\
-        RNN - Wavelet        & 1             & 39                     & 15                      & 14                   & 13                     \\
-                             & 2             & 39                     & 17                      & 15                   & 14                     \\
-                             & 3             & 39                     & 17                      & 16                   & 15                     \\
-        RNN - DVectors       & 1             & 86                     & 80                      & 74                   & 75                     \\
-                             & 2             & 86                     & 80                      & 73                   & 74                     \\
-                             & 3             & 86                     & 80                      & 74                   & 75                     \\
-        QCNN - MFCC          & 1             & 42                     & 6                       & 9                    & 7                      \\
-                             & 2             & 42                     & 6                       & 7                    & 5                      \\
-                             & 3             & 56                     & 36                      & 31                   & 30                     \\
-        QCNN - Wavelet       & 1             & 16                     & 4                       & 5                    & 3                      \\
-                             & 2             & 21                     & 7                       & 6                    & 4                      \\
-                             & 3             & 18                     & 4                       & 4                    & 3                      \\
-        QCNN - XVector       & 1             & 11                     & 0                       & 1                    & 0                      \\
-                             & 2             & 11                     & 0                       & 1                    & 0                      \\
-                             & 3             & 11                     & 0                       & 1                    & 0                      \\
-        QCNN - Dvector       & 1             & 44                     & 7                       & 10                   & 7                      \\
-                             & 2             & 49                     & 7                       & 13                   & 8                      \\
-                             & 3             & 48                     & 8                       & 13                   & 9                      \\
-        QCNN - HMM - MFCC    & 1             & 1                      & 2                       & 1                    & 1                      \\
-                             & 2             & 2                      & 2                       & 1                    & 1                      \\
-                             & 3             & 1                      & 2                       & 1                    & 1                      \\
-        QCNN - HMM - Wavelet & 1             & 5                      & 4                       & 11                   & 5                      \\
-                             & 2             & 5                      & 9                       & 11                   & 6                      \\
-                             & 3             & 8                      & 9                       & 14                   & 7                      \\
-        QCNN - HMM - XVector & 1             & 95                     & 96                      & 93                   & 94                     \\
-                             & 2             & 95                     & 96                      & 90                   & 92                     \\
-                             & 3             & 95                     & 97                      & 92                   & 94                     \\
-        \rowcolor{gray!20} QCNN - HMM - DVector & \textbf{1} & \textbf{97} & \textbf{97} & \textbf{95} & \textbf{96} \\
-        \rowcolor{gray!20}                      & \textbf{2} & \textbf{97} & \textbf{97} & \textbf{92} & \textbf{94} \\
-        \rowcolor{gray!20}                      & \textbf{3} & \textbf{97} & \textbf{98} & \textbf{94} & \textbf{95} \\
+        HMM - MFCC                              & 1             & 49                     & 74                      & 69                   & 64                     \\
+                                                & 2             & 55                     & 74                      & 73                   & 66                     \\
+                                                & 3             & 48                     & 76                      & 71                   & 66                     \\
+        HMM - XVectors                          & 1             & 66                     & 67                      & 59                   & 59                     \\
+                                                & 2             & 71                     & 74                      & 62                   & 63                     \\
+                                                & 3             & 67                     & 66                      & 56                   & 57                     \\
+        HMM - Wavelet                           & 1             & 15                     & 23                      & 12                   & 11                     \\
+                                                & 2             & 18                     & 27                      & 15                   & 14                     \\
+                                                & 3             & 17                     & 22                      & 12                   & 13                     \\
+        HMM - DVectors                          & 1             & 36                     & 4                       & 10                   & 5                      \\
+                                                & 2             & 36                     & 4                       & 10                   & 5                      \\
+                                                & 3             & 35                     & 4                       & 10                   & 5                      \\
+        RNN - MFCC                              & 1             & 78                     & 59                      & 53                   & 54                     \\
+                                                & 2             & 79                     & 70                      & 58                   & 59                     \\
+                                                & 3             & 78                     & 63                      & 56                   & 57                     \\
+        RNN - XVectors                          & 1             & 69                     & 27                      & 28                   & 25                     \\
+                                                & 2             & 70                     & 34                      & 32                   & 30                     \\
+                                                & 3             & 75                     & 39                      & 39                   & 37                     \\
+        RNN - Wavelet                           & 1             & 39                     & 15                      & 14                   & 13                     \\
+                                                & 2             & 39                     & 17                      & 15                   & 14                     \\
+                                                & 3             & 39                     & 17                      & 16                   & 15                     \\
+        RNN - DVectors                          & 1             & 86                     & 80                      & 74                   & 75                     \\
+                                                & 2             & 86                     & 80                      & 73                   & 74                     \\
+                                                & 3             & 86                     & 80                      & 74                   & 75                     \\
+        QCNN - MFCC                             & 1             & 42                     & 6                       & 9                    & 7                      \\
+                                                & 2             & 42                     & 6                       & 7                    & 5                      \\
+                                                & 3             & 56                     & 36                      & 31                   & 30                     \\
+        QCNN - Wavelet                          & 1             & 16                     & 4                       & 5                    & 3                      \\
+                                                & 2             & 21                     & 7                       & 6                    & 4                      \\
+                                                & 3             & 18                     & 4                       & 4                    & 3                      \\
+        QCNN - XVector                          & 1             & 11                     & 0                       & 1                    & 0                      \\
+                                                & 2             & 11                     & 0                       & 1                    & 0                      \\
+                                                & 3             & 11                     & 0                       & 1                    & 0                      \\
+        QCNN - Dvector                          & 1             & 44                     & 7                       & 10                   & 7                      \\
+                                                & 2             & 49                     & 7                       & 13                   & 8                      \\
+                                                & 3             & 48                     & 8                       & 13                   & 9                      \\
+        QCNN - HMM - MFCC                       & 1             & 1                      & 2                       & 1                    & 1                      \\
+                                                & 2             & 2                      & 2                       & 1                    & 1                      \\
+                                                & 3             & 1                      & 2                       & 1                    & 1                      \\
+        QCNN - HMM - Wavelet                    & 1             & 5                      & 4                       & 11                   & 5                      \\
+                                                & 2             & 5                      & 9                       & 11                   & 6                      \\
+                                                & 3             & 8                      & 9                       & 14                   & 7                      \\
+        QCNN - HMM - XVector                    & 1             & 95                     & 96                      & 93                   & 94                     \\
+                                                & 2             & 95                     & 96                      & 90                   & 92                     \\
+                                                & 3             & 95                     & 97                      & 92                   & 94                     \\
+        \rowcolor{gray!20} QCNN - HMM - DVector & \textbf{1}    & \textbf{97}            & \textbf{97}             & \textbf{95}          & \textbf{96}            \\
+        \rowcolor{gray!20}                      & \textbf{2}    & \textbf{97}            & \textbf{97}             & \textbf{92}          & \textbf{94}            \\
+        \rowcolor{gray!20}                      & \textbf{3}    & \textbf{97}            & \textbf{98}             & \textbf{94}          & \textbf{95}            \\
         \hline
     \end{tabular}
 \end{table*}
