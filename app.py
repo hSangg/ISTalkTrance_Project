@@ -126,29 +126,33 @@ def diarization():
             if os.path.exists(segment_path):
                 os.unlink(segment_path)
 
-        dialogue_text = "\n".join(
-            f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in results
-        )
+        # dialogue_text = "\n".join(
+        #     f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in results
+        # )
 
-        instruction = "Đây là người nói và nội dung chưa đúng chính tả, hãy tổng hợp lại và tóm tắt cuộc họp " + dialogue_text
-        input_prompt = PROMPT_TEMPLATE.format_map({"instruction": instruction})
+        # instruction = "Đây là người nói và nội dung chưa đúng chính tả, hãy tổng hợp lại và tóm tắt cuộc họp " + dialogue_text
+        # input_prompt = PROMPT_TEMPLATE.format_map({"instruction": instruction})
 
-        input_ids = tokenizer(input_prompt, return_tensors="pt")
+        # input_ids = tokenizer(input_prompt, return_tensors="pt")
 
-        outputs = phoModel.generate(
-            inputs=input_ids["input_ids"].to("cpu"),
-            attention_mask=input_ids["attention_mask"].to("cpu"),
-            do_sample=True,
-            temperature=1.0,
-            top_k=50,
-            top_p=0.9,
-            max_new_tokens=1024,
-            eos_token_id=tokenizer.eos_token_id,
-            pad_token_id=tokenizer.pad_token_id
-        )
+        # outputs = phoModel.generate(
+        #     inputs=input_ids["input_ids"].to("cpu"),
+        #     attention_mask=input_ids["attention_mask"].to("cpu"),
+        #     do_sample=True,
+        #     temperature=1.0,
+        #     top_k=50,
+        #     top_p=0.9,
+        #     max_new_tokens=1024,
+        #     eos_token_id=tokenizer.eos_token_id,
+        #     pad_token_id=tokenizer.pad_token_id
+        # )
 
-        response = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
-        response = response.split("### Trả lời:")[1]
+        # response = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
+        # response = response.split("### Trả lời:")[1]
+
+
+
+
 
         # input_text = f"tóm tắt: {dialogue_text}"
         #
@@ -166,9 +170,10 @@ def diarization():
         #     early_stopping=True
         # )
         # summary = summary_tokenizer.decode(output_ids[0], skip_special_tokens=True)
+
     return jsonify({
         "message": "Diarization completed successfully.",
-        "results": response
+        "results": results
     }), 200
 
 
