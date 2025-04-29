@@ -114,40 +114,21 @@ QCNN is a novel model in quantum deep learning, designed to leverage quantum pro
 \section{Background}
 
 
-
-
-
 \begin{figure}[H]
     \centering
-    \resizebox{0.45\textwidth}{!}{%
-        \begin{tikzpicture}[
-            node distance=0.5cm,
-            every node/.style={font=\small},
-            box/.style={draw, rounded corners, minimum width=1.5cm, minimum height=1.0cm, align=center, fill=cyan!20},
-            line/.style={draw, thick, -{Stealth}}
-            ]
+    \begin{minipage}{0.5\textwidth}
+        \centering
+        \includegraphics[width=1\textwidth]{resource/img/identification_flow.pdf}
+        \caption{Speaker Identification Flow}
+        \label{fig:identification_flow}
+    \end{minipage}
 
-            % Nodes
-            \node[fill=blue!10] (input) {Input Speech Signal};
-            \node[box, fill=green!10, right=of input] (feature) {Feature Extraction};
-            \node[box, fill=orange!10, right=of feature] (model) {Model Processing};
-            \node[fill=red!10, below=of model] (output) {Speaker Identity};
-
-            % Arrows
-            \draw[line] (input) -- (feature);
-            \draw[line] (feature) -- (model);
-            \draw[line] (model) -- (output);
-
-        \end{tikzpicture}%
-    }
-    \label{fig:speaker_identification_pipeline}
-    \caption{Speaker Identification Pipeline}
 \end{figure}
 
 
 An Automatic Speech Recognition (ASR) system designed for speaker identification analyzes an input audio signal, denoted as $audio_x$.
 The ASR model, represented as $f(\cdot)$, aims to match the input with the most appropriate speaker profile based on the extracted voice features.
-In figure~\ref{fig:speaker_identification_pipeline}, he first step, \textbf{feature extraction},
+In figure~\ref{fig:identification_flow}, when training or identifying the \textbf{feature extraction},
 captures the acoustic characteristics of the input speech signal. Traditional systems often rely on \textbf{MFCC} to extract time-frequency representations of speech,
 while modern systems have adopted more advanced techniques, such as \textbf{XVector}, \textbf{DVector}, and \textbf{Wavelet}, which offer enhanced representations of
 speaker traits in different domains. In the next phase, \textbf{model processing}, the extracted features or raw spectrogram are fed into models such as \textbf{Hidden Markov Models (HMM)},
@@ -213,12 +194,6 @@ coefficients at multiple levels using a pair of low-pass and high-pass filters f
 
 We use the Daubechies-4 (db4) wavelet and apply the transform up to level 1.
 From each set of wavelet coefficients, we extract statistical features such as mean, standard deviation, max, min, median, and energy. These features serve as inputs for a Gaussian Hidden Markov Model (HMM) classifier or Recurent Neural Network (RNN). \cite{tufekci2000dwt}
-
-
-
-
-
-
 
 
 
