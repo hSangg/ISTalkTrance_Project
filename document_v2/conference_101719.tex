@@ -383,65 +383,33 @@ The total size of the dataset is 15GB, with many measurements listed below:
 \subsection{Evaluation Results}
 We use cross-validation to train and test many model–extractor combinations, and we obtained the results show in table \ref{tab:asr-results}.
 
-
 \begin{table*}[htbp]
     \centering
     \caption{Evaluation Results of Different ASR Models Across Folds}
     \label{tab:asr-results}
-    \begin{tabular}{|l|c|c|c|c|c|}
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{|l|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
         \hline
-        \textbf{Model}                          & \textbf{Fold} & \textbf{Accuracy (\%)} & \textbf{Precision (\%)} & \textbf{Recall (\%)} & \textbf{F1-score (\%)} \\
+        \textbf{Metric / Fold} & HMM-MFCC & HMM-XVec & HMM-Wavelet & HMM-DVec & RNN-MFCC & RNN-XVec & RNN-Wavelet & RNN-DVec & QCNN-MFCC & QCNN-Wavelet & QCNN-XVec & QCNN-DVec & QCNN-HMM-MFCC & QCNN-HMM-Wavelet & QCNN-HMM-XVec & \textbf{QCNN-HMM-DVec} \\
         \hline
-        HMM - MFCC                              & 1             & 49                     & 74                      & 69                   & 64                     \\
-                                                & 2             & 55                     & 74                      & 73                   & 66                     \\
-                                                & 3             & 48                     & 76                      & 71                   & 66                     \\
-        HMM - XVectors                          & 1             & 66                     & 67                      & 59                   & 59                     \\
-                                                & 2             & 71                     & 74                      & 62                   & 63                     \\
-                                                & 3             & 67                     & 66                      & 56                   & 57                     \\
-        HMM - Wavelet                           & 1             & 15                     & 23                      & 12                   & 11                     \\
-                                                & 2             & 18                     & 27                      & 15                   & 14                     \\
-                                                & 3             & 17                     & 22                      & 12                   & 13                     \\
-        HMM - DVectors                          & 1             & 36                     & 4                       & 10                   & 5                      \\
-                                                & 2             & 36                     & 4                       & 10                   & 5                      \\
-                                                & 3             & 35                     & 4                       & 10                   & 5                      \\
-        RNN - MFCC                              & 1             & 78                     & 59                      & 53                   & 54                     \\
-                                                & 2             & 79                     & 70                      & 58                   & 59                     \\
-                                                & 3             & 78                     & 63                      & 56                   & 57                     \\
-        RNN - XVectors                          & 1             & 69                     & 27                      & 28                   & 25                     \\
-                                                & 2             & 70                     & 34                      & 32                   & 30                     \\
-                                                & 3             & 75                     & 39                      & 39                   & 37                     \\
-        RNN - Wavelet                           & 1             & 39                     & 15                      & 14                   & 13                     \\
-                                                & 2             & 39                     & 17                      & 15                   & 14                     \\
-                                                & 3             & 39                     & 17                      & 16                   & 15                     \\
-        RNN - DVectors                          & 1             & 86                     & 80                      & 74                   & 75                     \\
-                                                & 2             & 86                     & 80                      & 73                   & 74                     \\
-                                                & 3             & 86                     & 80                      & 74                   & 75                     \\
-        QCNN - MFCC                             & 1             & 42                     & 6                       & 9                    & 7                      \\
-                                                & 2             & 42                     & 6                       & 7                    & 5                      \\
-                                                & 3             & 56                     & 36                      & 31                   & 30                     \\
-        QCNN - Wavelet                          & 1             & 16                     & 4                       & 5                    & 3                      \\
-                                                & 2             & 21                     & 7                       & 6                    & 4                      \\
-                                                & 3             & 18                     & 4                       & 4                    & 3                      \\
-        QCNN - XVector                          & 1             & 11                     & 0                       & 1                    & 0                      \\
-                                                & 2             & 11                     & 0                       & 1                    & 0                      \\
-                                                & 3             & 11                     & 0                       & 1                    & 0                      \\
-        QCNN - Dvector                          & 1             & 44                     & 7                       & 10                   & 7                      \\
-                                                & 2             & 49                     & 7                       & 13                   & 8                      \\
-                                                & 3             & 48                     & 8                       & 13                   & 9                      \\
-        QCNN - HMM - MFCC                       & 1             & 1                      & 2                       & 1                    & 1                      \\
-                                                & 2             & 2                      & 2                       & 1                    & 1                      \\
-                                                & 3             & 1                      & 2                       & 1                    & 1                      \\
-        QCNN - HMM - Wavelet                    & 1             & 5                      & 4                       & 11                   & 5                      \\
-                                                & 2             & 5                      & 9                       & 11                   & 6                      \\
-                                                & 3             & 8                      & 9                       & 14                   & 7                      \\
-        QCNN - HMM - XVector                    & 1             & 95                     & 96                      & 93                   & 94                     \\
-                                                & 2             & 95                     & 96                      & 90                   & 92                     \\
-                                                & 3             & 95                     & 97                      & 92                   & 94                     \\
-        \rowcolor{gray!20} QCNN - HMM - DVector & \textbf{1}    & \textbf{97}            & \textbf{97}             & \textbf{95}          & \textbf{96}            \\
-        \rowcolor{gray!20}                      & \textbf{2}    & \textbf{97}            & \textbf{97}             & \textbf{92}          & \textbf{94}            \\
-        \rowcolor{gray!20}                      & \textbf{3}    & \textbf{97}            & \textbf{98}             & \textbf{94}          & \textbf{95}            \\
+        Accuracy Fold 1 & 0.49 & 0.66 & 0.15 & 0.36 & 0.78 & 0.69 & 0.39 & 0.86 & 0.42 & 0.16 & 0.11 & 0.44 & 0.83 & 0.32 & 0.95 & \textbf{0.97} \\
+        Accuracy Fold 2 & 0.55 & 0.71 & 0.18 & 0.36 & 0.79 & 0.70 & 0.39 & 0.86 & 0.42 & 0.21 & 0.11 & 0.49 & 0.82 & 0.33 & 0.95 & \textbf{0.97} \\
+        Accuracy Fold 3 & 0.48 & 0.67 & 0.17 & 0.35 & 0.78 & 0.75 & 0.39 & 0.86 & 0.56 & 0.18 & 0.11 & 0.48 & 0.83 & 0.34 & 0.95 & \textbf{0.97} \\
+        \hline
+        Precision Fold 1 & 0.74 & 0.67 & 0.23 & 0.04 & 0.59 & 0.27 & 0.15 & 0.80 & 0.06 & 0.04 & 0.00 & 0.07 & 0.89 & 0.26 & 0.96 & \textbf{0.97} \\
+        Precision Fold 2 & 0.74 & 0.74 & 0.27 & 0.04 & 0.70 & 0.34 & 0.17 & 0.80 & 0.06 & 0.07 & 0.00 & 0.07 & 0.88 & 0.26 & 0.96 & \textbf{0.97} \\
+        Precision Fold 3 & 0.76 & 0.66 & 0.22 & 0.04 & 0.63 & 0.39 & 0.17 & 0.80 & 0.36 & 0.04 & 0.00 & 0.08 & 0.88 & 0.27 & 0.97 & \textbf{0.98} \\
+        \hline
+        Recall Fold 1 & 0.69 & 0.59 & 0.12 & 0.10 & 0.53 & 0.28 & 0.14 & 0.74 & 0.09 & 0.05 & 0.01 & 0.10 & 0.87 & 0.19 & 0.93 & \textbf{0.95} \\
+        Recall Fold 2 & 0.73 & 0.62 & 0.15 & 0.10 & 0.58 & 0.32 & 0.15 & 0.73 & 0.07 & 0.06 & 0.01 & 0.13 & 0.85 & 0.19 & 0.90 & \textbf{0.92} \\
+        Recall Fold 3 & 0.71 & 0.56 & 0.12 & 0.10 & 0.56 & 0.39 & 0.16 & 0.74 & 0.31 & 0.04 & 0.01 & 0.13 & 0.86 & 0.21 & 0.92 & \textbf{0.94} \\
+        \hline
+        F1-score Fold 1 & 0.64 & 0.59 & 0.11 & 0.05 & 0.54 & 0.25 & 0.13 & 0.75 & 0.07 & 0.03 & 0.00 & 0.07 & 0.87 & 0.18 & 0.94 & \textbf{0.96} \\
+        F1-score Fold 2 & 0.66 & 0.63 & 0.14 & 0.05 & 0.59 & 0.30 & 0.14 & 0.74 & 0.05 & 0.04 & 0.00 & 0.08 & 0.85 & 0.17 & 0.92 & \textbf{0.94} \\
+        F1-score Fold 3 & 0.66 & 0.57 & 0.13 & 0.05 & 0.57 & 0.37 & 0.15 & 0.75 & 0.30 & 0.03 & 0.00 & 0.09 & 0.86 & 0.19 & 0.94 & \textbf{0.95} \\
         \hline
     \end{tabular}
+    }
 \end{table*}
 \subsection{Comparison of Models and Discussion}
 
