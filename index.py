@@ -1,72 +1,55 @@
 import json
+import os
 
-def merge_same_speaker_data_segments(results):
-    if not results:
-        return []
+from rouge_score import rouge_scorer
 
-    merged_results = []
-    current_segment = {
-        "start_time": results[0]["start_time"],
-        "end_time": results[0]["end_time"],
-        "speaker_data": results[0]["speaker_data"],
-        "transcription": results[0]["transcription"]
-    }
+# Tạo RougeScorer
+scorer = rouge_scorer.RougeScorer(["rouge1", "rouge2", "rougeL"], use_stemmer=True)
 
-    for i in range(1, len(results)):
-        segment = results[i]
-        if segment["speaker_data"] == current_segment["speaker_data"]:
-            # Gộp đoạn lại
-            current_segment["end_time"] = segment["end_time"]
-            current_segment["transcription"] += " " + segment["transcription"]
-        else:
-            # Đẩy đoạn cũ vào danh sách kết quả
-            merged_results.append(current_segment)
-            # Bắt đầu đoạn mới
-            current_segment = {
-                "start_time": segment["start_time"],
-                "end_time": segment["end_time"],
-                "speaker_data": segment["speaker_data"],
-                "transcription": segment["transcription"]
-            }
+base_path = "test_voice"
+overall_results = {"rouge1": [], "rouge2": [], "rougeL": []}
 
-    # Thêm đoạn cuối cùng
-    merged_results.append(current_segment)
-    return merged_results
+# Duyệt tất cả các thư mục con trong test_voice
+for folder_name in os.listdir(base_path):
+    folder_path = os.path.join(base_path, folder_name)
+    true_file = os.path.join(folder_path, "true_summarization.json")
+    test_file = os.path.join(folder_path, "test_summarization.json")
 
+    # Bỏ qua nếu không tìm thấy file cần thiết
+    if not os.path.isfile(true_file) or not os.path.isfile(test_file):
+        print(f"Bỏ qua {folder_name} vì thiếu file.")
+        continue
 
+    with open(true_file, "r", encoding="utf-8") as f:
+        true_data = json.load(f)
 
-def export_results_to_json(results, json_file_path):
-    try:
-        with open(json_file_path, 'w', encoding='utf-8') as f:
-            json.dump(results, f, indent=4, ensure_ascii=False)
-        print(f"Successfully exported results to {json_file_path}")
-    except Exception as e:
-        print(f"An error occurred while writing to the JSON file: {e}")
+    with open(test_file, "r", encoding="utf-8") as f:
+        test_data = json.load(f)
 
+    references = [item["transcription"] for item in true_data]
+    predictions = [item["transcription"] for item in test_data]
 
-json_file = "test_voice/vuiveuncut_conentinkiemtientrenmang/speech.json" #example
+    results = {"rouge1": [], "rouge2": [], "rougeL": []}
+    for ref, pred in zip(references, predictions):
+        scores = scorer.score(ref, pred)
+        results["rouge1"].append(scores["rouge1"].fmeasure)
+        results["rouge2"].append(scores["rouge2"].fmeasure)
+        results["rougeL"].append(scores["rougeL"].fmeasure)
 
-# Load the JSON file
-try:
-    with open(json_file, 'r', encoding='utf-8') as f:
-        results = json.load(f)
-except FileNotFoundError:
-    print(f"Error: File not found at {json_file}")
-    results = []  # Ensure results is initialized to an empty list
-except json.JSONDecodeError:
-    print(f"Error: Invalid JSON in {json_file}")
-    results = []
+    # Tính trung bình từng chỉ số ROUGE cho thư mục hiện tại
+    avg = {key: sum(values) / len(values) if values else 0 for key, values in results.items()}
 
+    print(f"\n📁 Kết quả cho thư mục: {folder_name}")
+    for k, v in avg.items():
+        print(f"{k}: {v:.4f}")
 
-# Apply the merge function
-merged_results = merge_same_speaker_data_segments(results)
+    # Thêm vào tổng
+    for key in overall_results:
+        overall_results[key].extend(results[key])
 
-# Store the merged JSON back to the same file
-export_results_to_json(merged_results, json_file)
-
-
-# dialogue_text = "\n".join(
-#         f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in merge_same_speaker_data_segments(result)
-#     )
-
-# print(dialogue_text)
+# Tính điểm trung bình toàn bộ
+print("\n🌟 Tổng kết OVERALL:")
+for key in overall_results:
+    all_scores = overall_results[key]
+    avg_score = sum(all_scores) / len(all_scores) if all_scores else 0
+    print(f"{key}: {avg_score:.4f}")
