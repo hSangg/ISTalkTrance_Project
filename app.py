@@ -1,3 +1,4 @@
+import json
 import os
 import pickle
 import time
@@ -6,10 +7,11 @@ from datetime import timedelta
 from io import BytesIO
 
 import librosa
+import soundfile as sf
 import torch
 from flask import Flask, request, jsonify
 from werkzeug.datastructures import FileStorage
-import soundfile as sf
+
 from modules.authenticate import VoiceAuthenticator
 from modules.batch_trainer import BatchTrainer
 from modules.config import Config
@@ -51,6 +53,7 @@ transcriber = pipeline("automatic-speech-recognition", model="vinai/PhoWhisper-s
 
 model_path = "vinai/PhoGPT-4B-Chat"
 config = AutoConfig.from_pretrained(model_path, trust_remote_code=True, token="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")
+config.init_device="meta"
 phoModel = AutoModelForCausalLM.from_pretrained(model_path, config=config, torch_dtype=torch.bfloat16, trust_remote_code=True, token="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")
 tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True, token="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")
 PROMPT_TEMPLATE = "### Câu hỏi: {instruction}\n### Trả lời:"
@@ -82,16 +85,36 @@ def diarization():
     diarization = pipeline(audio_io)
 
     results = []
+    grouped_turns = []
+    current_group = []
 
     for turn, _, speaker in diarization.itertracks(yield_label=True):
-        start_time = str(timedelta(seconds=int(turn.start)))
-        end_time = str(timedelta(seconds=int(turn.end)))
+        if not current_group:
+            current_group = [(turn, speaker)]
+        else:
+            last_turn, last_speaker = current_group[-1]
+            if speaker == last_speaker:
+                current_group.append((turn, speaker))
+            else:
+                grouped_turns.append(current_group)
+                current_group = [(turn, speaker)]
+
+    if current_group:
+        grouped_turns.append(current_group)
+
+
+    for group in grouped_turns:
+        start_time_sec = group[0][0].start
+        end_time_sec = group[-1][0].end
+
+        start_time = str(timedelta(seconds=int(start_time_sec)))
+        end_time = str(timedelta(seconds=int(end_time_sec)))
 
         if start_time == end_time:
             continue
 
-        start_sample = int(turn.start * sr)
-        end_sample = int(turn.end * sr)
+        start_sample = int(start_time_sec * sr)
+        end_sample = int(end_time_sec * sr)
 
         audio_segment = full_audio[start_sample:end_sample]
 
@@ -113,69 +136,80 @@ def diarization():
         try:
             transcription = transcriber(segment_path)['text']
 
-            result_line = f"{start_time} {end_time} {predict_speaker} {transcription}"
-            print(result_line.strip())
-
             results.append({
                 "start_time": start_time,
                 "end_time": end_time,
-                "speaker_data": predict_speaker["best_user"],
+                "speaker_data": predict_speaker.get("best_user", "unknown"),
                 "transcription": transcription
             })
         finally:
             if os.path.exists(segment_path):
                 os.unlink(segment_path)
 
-        # dialogue_text = "\n".join(
-        #     f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in results
-        # )
 
-        # instruction = "Đây là người nói và nội dung chưa đúng chính tả, hãy tổng hợp lại và tóm tắt cuộc họp " + dialogue_text
-        # input_prompt = PROMPT_TEMPLATE.format_map({"instruction": instruction})
+    new_result = merge_same_speaker_segments(results)
 
-        # input_ids = tokenizer(input_prompt, return_tensors="pt")
+    dialogue_text = "\n".join(
+        f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in new_result
+    )
+    
+    instruction = "Đây là người nói và nội dung chưa đúng chính tả, hãy gọp những  và tóm tắt cuộc họp " + dialogue_text
+    input_prompt = PROMPT_TEMPLATE.format_map({"instruction": instruction})
 
-        # outputs = phoModel.generate(
-        #     inputs=input_ids["input_ids"].to("cpu"),
-        #     attention_mask=input_ids["attention_mask"].to("cpu"),
-        #     do_sample=True,
-        #     temperature=1.0,
-        #     top_k=50,
-        #     top_p=0.9,
-        #     max_new_tokens=1024,
-        #     eos_token_id=tokenizer.eos_token_id,
-        #     pad_token_id=tokenizer.pad_token_id
-        # )
+    input_ids = tokenizer(input_prompt, return_tensors="pt")
 
-        # response = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
-        # response = response.split("### Trả lời:")[1]
+    outputs = phoModel.generate(
+        inputs=input_ids["input_ids"].to("cpu"),
+        attention_mask=input_ids["attention_mask"].to("cpu"),
+        do_sample=True,
+        temperature=1.0,
+        top_k=50,
+        top_p=0.9,
+        max_new_tokens=1024,
+        eos_token_id=tokenizer.eos_token_id,
+        pad_token_id=tokenizer.pad_token_id
+    )
+
+    response = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
+    response = response.split("### Trả lời:")[1]
 
 
 
 
 
-        # input_text = f"tóm tắt: {dialogue_text}"
-        #
-        # input_ids = summary_tokenizer(
-        #     input_text,
-        #     return_tensors="pt",
-        #     max_length=512,
-        #     truncation=True
-        # ).input_ids
-        #
-        # output_ids = summary_model.generate(
-        #     input_ids,
-        #     max_length=150,
-        #     num_beams=4,
-        #     early_stopping=True
-        # )
-        # summary = summary_tokenizer.decode(output_ids[0], skip_special_tokens=True)
+    # input_text = f"tóm tắt: {dialogue_text}"
+    #
+    # input_ids = summary_tokenizer(
+    #     input_text,
+    #     return_tensors="pt",
+    #     max_length=512,
+    #     truncation=True
+    # ).input_ids
+    #
+    # output_ids = summary_model.generate(
+    #     input_ids,
+    #     max_length=150,
+    #     num_beams=4,
+    #     early_stopping=True
+    # )
+    # summary = summary_tokenizer.decode(output_ids[0], skip_special_tokens=True)
+    #
+    # json_file = "test_voice/meeting_10032025/speech.json"
+    # export_results_to_json(merge_same_speaker_segments(results), json_file)
 
     return jsonify({
         "message": "Diarization completed successfully.",
-        "results": results
+        "results": response
     }), 200
 
+
+def export_results_to_json(results, json_file_path):
+    try:
+        with open(json_file_path, 'w', encoding='utf-8') as f:
+            json.dump(results, f, indent=4, ensure_ascii=False)
+        print(f"Successfully exported results to {json_file_path}")
+    except Exception as e:
+        print(f"An error occurred while writing to the JSON file: {e}")
 
 @app.route('/deprecated/train', methods=['POST'])
 def deprecated_train():
@@ -426,6 +460,39 @@ def predict():
         f.write("\n".join(predictions))
 
     return jsonify({MESSAGE: COMPLETED, OUTPUT: predictions}), 200
+
+def merge_same_speaker_segments(results):
+    if not results:
+        return []
+
+    merged_results = []
+    current_segment = {
+        "start_time": results[0]["start_time"],
+        "end_time": results[0]["end_time"],
+        "speaker_data": results[0]["speaker_data"],
+        "transcription": results[0]["transcription"]
+    }
+
+    for i in range(1, len(results)):
+        segment = results[i]
+        if segment["speaker_data"] == current_segment["speaker_data"]:
+            # Gộp đoạn lại
+            current_segment["end_time"] = segment["end_time"]
+            current_segment["transcription"] += " " + segment["transcription"]
+        else:
+            # Đẩy đoạn cũ vào danh sách kết quả
+            merged_results.append(current_segment)
+            # Bắt đầu đoạn mới
+            current_segment = {
+                "start_time": segment["start_time"],
+                "end_time": segment["end_time"],
+                "speaker_data": segment["speaker_data"],
+                "transcription": segment["transcription"]
+            }
+
+    # Thêm đoạn cuối cùng
+    merged_results.append(current_segment)
+    return merged_results
 
 if __name__ == '__main__':
     app.run(debug=False)
