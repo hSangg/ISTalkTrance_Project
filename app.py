@@ -8,7 +8,6 @@ from io import BytesIO
 
 import librosa
 import soundfile as sf
-import torch
 from flask import Flask, request, jsonify
 from werkzeug.datastructures import FileStorage
 
@@ -39,8 +38,7 @@ batch_trainer = BatchTrainer()
 hf_token = os.getenv("HF_TOKEN")
 hf_token_full_access = os.getenv("HF_TOKEN_FULL_ACCESS")
 
-from transformers import (Wav2Vec2ForCTC, Wav2Vec2Processor, AutoModelForSeq2SeqLM, AutoTokenizer, AutoConfig,
-                          AutoModelForCausalLM, Pipeline, pipeline)
+from transformers import (Wav2Vec2ForCTC, Wav2Vec2Processor, AutoModelForSeq2SeqLM, AutoTokenizer, Pipeline, pipeline)
 processor = Wav2Vec2Processor.from_pretrained("anuragshas/wav2vec2-large-xlsr-53-vietnamese", token=hf_token_full_access)
 model = Wav2Vec2ForCTC.from_pretrained("anuragshas/wav2vec2-large-xlsr-53-vietnamese", token=hf_token_full_access)
 
@@ -51,13 +49,12 @@ from pyannote.audio import Pipeline
 
 transcriber = pipeline("automatic-speech-recognition", model="vinai/PhoWhisper-small", token=hf_token_full_access)
 
-model_path = "vinai/PhoGPT-4B-Chat"
-config = AutoConfig.from_pretrained(model_path, trust_remote_code=True, token="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")
-config.init_device="meta"
-phoModel = AutoModelForCausalLM.from_pretrained(model_path, config=config, torch_dtype=torch.bfloat16, trust_remote_code=True, token="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")
-tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True, token="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")
-PROMPT_TEMPLATE = "### Câu hỏi: {instruction}\n### Trả lời:"
-
+# model_path = "vinai/PhoGPT-4B-Chat"
+# config = AutoConfig.from_pretrained(model_path, trust_remote_code=True, token="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")
+# config.init_device="meta"
+# phoModel = AutoModelForCausalLM.from_pretrained(model_path, config=config, torch_dtype=torch.bfloat16, trust_remote_code=True, token="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")
+# tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True, token="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")
+# PROMPT_TEMPLATE = "### Câu hỏi: {instruction}\n### Trả lời:"
 
 @app.route("/diarization", methods=["POST"])
 def diarization():
@@ -148,32 +145,32 @@ def diarization():
 
 
     new_result = merge_same_speaker_segments(results)
-
-    dialogue_text = "\n".join(
-        f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in new_result
-    )
-    
-    instruction = "Đây là người nói và nội dung chưa đúng chính tả, hãy gọp những  và tóm tắt cuộc họp " + dialogue_text
-    input_prompt = PROMPT_TEMPLATE.format_map({"instruction": instruction})
-
-    input_ids = tokenizer(input_prompt, return_tensors="pt")
-
-    outputs = phoModel.generate(
-        inputs=input_ids["input_ids"].to("cpu"),
-        attention_mask=input_ids["attention_mask"].to("cpu"),
-        do_sample=True,
-        temperature=1.0,
-        top_k=50,
-        top_p=0.9,
-        max_new_tokens=1024,
-        eos_token_id=tokenizer.eos_token_id,
-        pad_token_id=tokenizer.pad_token_id
-    )
-
-    response = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
-    response = response.split("### Trả lời:")[1]
-
-
+    #
+    # dialogue_text = "\n".join(
+    #     f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in new_result
+    # )
+    #
+    # instruction = "Đây là người nói và nội dung chưa đúng chính tả, hãy gọp những  và tóm tắt cuộc họp " + dialogue_text
+    # input_prompt = PROMPT_TEMPLATE.format_map({"instruction": instruction})
+    #
+    # input_ids = tokenizer(input_prompt, return_tensors="pt")
+    #
+    # outputs = phoModel.generate(
+    #     inputs=input_ids["input_ids"].to("cpu"),
+    #     attention_mask=input_ids["attention_mask"].to("cpu"),
+    #     do_sample=True,
+    #     temperature=1.0,
+    #     top_k=50,
+    #     top_p=0.9,
+    #     max_new_tokens=1024,
+    #     eos_token_id=tokenizer.eos_token_id,
+    #     pad_token_id=tokenizer.pad_token_id
+    # )
+    #
+    # response = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
+    # response = response.split("### Trả lời:")[1]
+    #
+    #
 
 
 
@@ -199,7 +196,7 @@ def diarization():
 
     return jsonify({
         "message": "Diarization completed successfully.",
-        "results": response
+        "results": results,
     }), 200
 
 
