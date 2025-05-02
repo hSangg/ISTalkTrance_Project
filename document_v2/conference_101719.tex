@@ -352,6 +352,18 @@ We propose a hybrid architecture that combines Quantum Convolutional Neural Netw
 
 Each hidden state in HMM represents a potential speaker identity, while the observation probabilities are computed using the enriched feature vectors. This combination allows the model to leverage both the discriminative power of quantum-enhanced feature transformation and the temporal consistency of HMMs, resulting in more robust speaker identification.
 
+As mentioned in Fig \ref{fig:identification_flow}, we will add an additional step after feature extraction, processing the extracted features through QCNN and then we will combine the original features with the transformed ones to train or identify speakers. Fig \ref{fig:qcnn_flow}, show how it work.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.5\textwidth}
+        \centering
+        \includegraphics[width=1\textwidth]{resource/img/qcnn_flow.pdf}
+        \caption{QCNN Flow}
+        \label{fig:qcnn_flow}
+    \end{minipage}
+
+\end{figure}
 \subsection{Training and Evaluation}
 
 Our proposed models are trained using a cross-entropy loss on speaker labels, with parameter-shift rules applied to compute quantum gradients. For the hybrid model, once the QCNN is trained, we use the Baum-Welch algorithm to train the HMM based on the combined features (original + transformed). Evaluation is performed through cross-validation, and we report accuracy, precision, recall, and F1-score on both held-out speakers and unseen audio segments to assess generalization and robustness.
