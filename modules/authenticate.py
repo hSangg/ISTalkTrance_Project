@@ -1,4 +1,12 @@
 import numpy as np
+import os
+import pickle
+import json
+import numpy as np
+import librosa
+import warnings
+import torch
+import pennylane as qml
 
 from modules.feature_extractor import FeatureExtractor
 from modules.model_manager import ModelManager
@@ -70,6 +78,75 @@ class VoiceAuthenticator:
                 "error": str(e),
             }
 
+    def authenticate_qcnn(audio_data, sample_rate=16000, model_dir="mfcc_qcnn_hmm_models"):
+        """
+        Authenticate a speaker from audio data
+        
+        Parameters:
+        -----------
+        audio_data : numpy.ndarray
+            Audio data from a WAV file
+        sample_rate : int
+            Sample rate of the audio data (default: 16000)
+        model_dir : str
+            Directory containing trained models (default: "mfcc_qcnn_hmm_models")
+            
+        Returns:
+        --------
+        predicted_speaker : str
+            Name of the predicted speaker
+        confidence_scores : dict
+            Dictionary of confidence scores for each speaker
+        """
+        try:
+            with open(os.path.join(model_dir, "speakers.json"), "r") as f:
+                speakers = json.load(f)
+            
+            with open(os.path.join(model_dir, "qcnn_weights.pkl"), "rb") as f:
+                qcnn_weights = pickle.load(f)
+        except FileNotFoundError:
+            return "Error: Model files not found", {}
+        
+        hmm_models = {}
+        for speaker in speakers:
+            model_path = os.path.join(model_dir, f"{speaker}.pkl")
+            try:
+                with open(model_path, "rb") as f:
+                    hmm_models[speaker] = pickle.load(f)
+            except FileNotFoundError:
+                print(f"Warning: Model for {speaker} not found")
+        
+        if not hmm_models:
+            return "Error: No speaker models available", {}
+        
+        feature_extractor = FeatureExtractor(qcnn_weights)
+        
+        mfcc_features = feature_extractor.extract_mfcc(audio_data, sample_rate)
+        
+        if len(mfcc_features) == 0:
+            return "Error: Failed to extract features", {}
+        
+        test_features = feature_extractor.process_qcnn(mfcc_features)
+        
+        scores = {}
+        for speaker, model in hmm_models.items():
+            try:
+                score = model.score(test_features)
+                scores[speaker] = score
+            except Exception as e:
+                print(f"Error scoring {speaker}: {e}")
+                scores[speaker] = float('-inf')
+        
+        if not scores:
+            return "unknown", {}
+        
+        predicted_speaker = max(scores.items(), key=lambda x: x[1])[0]
+        
+        max_score = max(scores.values())
+        confidence_scores = {s: np.exp(score - max_score) for s, score in scores.items()}
+        
+        return predicted_speaker, confidence_scores
+
     def list_models(self):
         try:
             models = self.model_manager.list_models()
@@ -83,3 +160,4 @@ class VoiceAuthenticator:
                 "success": False,
                 "error": str(e),
             }
+        
