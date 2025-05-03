@@ -17,12 +17,12 @@
         21522541@gm.uit.edu.vn
     }
     \and
-    \IEEEauthorblockN{Trần Thị B}
+    \IEEEauthorblockN{Thi Thành Công}
     \IEEEauthorblockA{
-        Khoa Khoa học Máy tính \\
-        Đại học Quốc gia TP.HCM \\
-        TP. Hồ Chí Minh, Việt Nam \\
-        emailb@example.com
+        Khoa Hệ Thống Thông Tin \\
+        Đại Học Công Nghệ Thông Tin - ĐHQG TP.HCM \\
+        Hồ Chí Minh, Việt Nam \\
+        21521897@gm.uit.edu.vn
     }
 }
 
@@ -47,6 +47,31 @@ Trong bối cảnh các cuộc họp và tương tác trực tuyến ngày càng
 
 Đề tài hướng đến việc xây dựng một hệ thống xử lý giọng nói thời gian thực tích hợp đa chức năng: nhận diện người nói, phân tích và tóm tắt hội thoại theo từng cá nhân, đồng thời dịch giọng nói sang ngôn ngữ khác mà vẫn bảo toàn đặc trưng giọng nói ban đầu. Hệ thống sẽ ứng dụng các mô hình học sâu hiện đại kết hợp các đặc trưng âm học để đạt hiệu quả cao.
 
+\section{Related Work}
+
+Trong lĩnh vực nhận dạng và phân tích giọng nói thời gian thực, nhiều hướng tiếp cận đã được đề xuất với sự hỗ trợ của các kỹ thuật học máy và học sâu. Phần này trình bày tổng quan các hướng tiếp cận liên quan, được chia thành các nhóm dựa trên phương pháp đặc trưng và mô hình được sử dụng.
+
+\subsection{Mel-Frequency Cepstral Coefficients (MFCC)}
+
+MFCC một trong những đặc trưng phổ biến nhất trong xử lý tín hiệu giọng nói. Bài báo về việc sử dụng MFCC để trích xuất đặc trưng dùng cho huấn luyện mô hình HMM (mô hình Markov ẩn) của Rabiner~\cite{rabiner1989tutorial} đã trình bày chi tiết việc sử dụng mô hình Markov ẩn (HMM) kết hợp với đặc trưng MFCC để nhận dạng tiếng nói.
+\subsection{Wavelet-based Features}
+
+Biến đổi wavelet là một công cụ mạnh mẽ được sử dụng nhằm khai thác thông tin thời gian và tần số từ tín hiệu âm thanh. Wavelet cho thấy khả năng xử lý tốt âm thanh trong môi trường bị nhiễu hay không ổn định. Dù chưa phổ biến rộng rãi như MFCC, wavelet gần đây đã được ứng dụng vào các hệ thống nhờ khả năng khử nhiễu mạnh mẽ. Các nghiên cứu đã chỉ ra rằng việc sử dụng biến đổi wavelet trong trích xuất đặc trưng có thể cải thiện độ chính xác của hệ thống nhận dạng tiếng nói, đặc biệt trong môi trường có nhiễu \cite{gupta2003robust, wang2008robust}.
+
+\subsection{X-vector and D-vector Embeddings}
+
+X-vector và D-vector là các biểu diễn học được từ dữ liệu âm thanh, thường dùng cho nhận dạng người nói. Hệ thống X-vector thường sử dụng mạng DNN hoặc TDNN để học biễu diễn nhằm cải thiện độ chính xác trong phân biệt người nói. Các biểu diễn này được sử dụng rộng rãi trong quy trình xử lý hiện đại, ví dụ như trong hệ thống của Kaldi và SpeechBrain. Snyder et al.~\cite{Snyder2018Xvectors} đã giới thiệu X-vector như một biểu diễn học sâu cho nhận dạng người nói. Đối với D-vector, Wan et al.~\cite{Wan2018Generalized} đã đề xuất sử dụng hàm mất mát GE2E để huấn luyện, giúp cải thiện hiệu suất trong nhận dạng người nói.
+
+\subsection{Hidden Markov Models (HMM)}
+
+HMM là nền tảng của nhiều hệ thống ASR truyền thống. Rabiner~\cite{rabiner1989tutorial} đã đề xuất các phương pháp huấn luyện và giải thuật Viterbi hiệu quả cho HMM trong nhận dạng tiếng nói. Các hệ thống hybrid như trong~\cite{voll2007hybrid, perero2022comparison} cũng cho thấy việc kết hợp HMM với mạng nơ-ron giúp cải thiện độ chính xác trong môi trường thực tế.
+
+\subsection{Quantum Convolutional Neural Networks (QCNN)}
+
+QCNN là một mô hình mới trong học sâu lượng tử, được đề xuất nhằm tận dụng tính chất lượng tử để giảm số lượng tham số dư thừa, tập trung vào các đặc trưng chính và tăng cường khả năng biểu diễn. Cong et al.~\cite{Cong2019QuantumCNN} đã giới thiệu QCNN như một mô hình học máy lượng tử mới, kết hợp với các đặc điểm của mạng nơ-ron tích chập và tính chất lượng tử để phân loại các  trạng thái lượng tử. Mặc dù QCNN chưa được áp dụng rộng rãi trong ASR, nghiên cứu của Yang et al.~\cite{Yang2021Decentralizing} đã chỉ ra tiềm năng trong việc kết hợp QCNN với các mô hình truyền thống để cải thiện hiệu quả trong các tác vụ phân loại âm thanh và nhận dạng người nói.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
 
 % \section{Trích Xuất MFCC}
 % Quy trình trích xuất MFCC bao gồm nhiều bước tiền xử lý để chuyển đổi tín hiệu giọng nói từ miền thời gian sang miền tần số và sau đó trích xuất các đặc trưng cepstral.
