@@ -9,7 +9,10 @@ import librosa
 import numpy as np
 import soundfile as sf
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from openai import OpenAI
+from pyannote.audio import Pipeline
+from transformers import (Pipeline, pipeline)
 from werkzeug.datastructures import FileStorage
 
 from modules.authenticate import VoiceAuthenticator
@@ -17,6 +20,7 @@ from modules.batch_trainer import BatchTrainer
 from modules.config import Config
 from modules.feature_extractor import FeatureExtractor
 from modules.model_manager import ModelManager
+from modules.trainner import Trainner
 from modules.utils import Utils
 
 COMPLETED = "Completed"
@@ -30,19 +34,12 @@ SCRIPT = "script"
 AUDIO = "audio"
 
 app = Flask(__name__)
-
+CORS(app)
 Config.setup()
-from modules.trainner import Trainner
 
 authenticator = VoiceAuthenticator()
 batch_trainer = BatchTrainer()
-
 hf_token_full_access = os.getenv("HF_TOKEN_FULL_ACCESS")
-
-from transformers import (Pipeline, pipeline)
-
-from pyannote.audio import Pipeline
-
 transcriber = pipeline("automatic-speech-recognition", model="vinai/PhoWhisper-small", token=hf_token_full_access)
 
 @app.route("/diarization", methods=["POST"])
@@ -88,7 +85,6 @@ def diarization():
     if current_group:
         grouped_turns.append(current_group)
 
-
     for group in grouped_turns:
         start_time_sec = group[0][0].start
         end_time_sec = group[-1][0].end
@@ -116,7 +112,6 @@ def diarization():
                 audio_data = np.mean(audio_data, axis=1)
         except Exception as e:
             print(f"Error loading audio file: {e}")
-
 
         predicted_speaker, confidence_scores = authenticator.authenticate_qcnn(
             audio_data=audio_data,
@@ -175,14 +170,11 @@ def export_results_to_json(results, json_file_path):
         print(f"An error occurred while writing to the JSON file: {e}")
 
 
-
-
-
-
 @app.route("/train-all-hmm", methods=["POST"])
 def train_all_hmm():
     Trainner.train_hmm_model_all()
     return jsonify({"message": "Completed"})
+
 
 @app.route("/train", methods=["POST"])
 def train():
@@ -218,6 +210,7 @@ def train():
 
     return jsonify({MESSAGE: COMPLETED}), 200
 
+
 @app.route("/predict", methods=["POST"])
 def predict():
     global start, end, best_speaker, best_score, mfcc
@@ -242,7 +235,7 @@ def predict():
     predictions = []
 
     for start, end in segments:
-        segment = y[int (start * sr) : int(end * sr)]
+        segment = y[int(start * sr): int(end * sr)]
         mfcc = FeatureExtractor.extract_mfcc_from_segment(segment, sr)
         best_speaker = None
         best_score = float("-inf")
@@ -263,6 +256,7 @@ def predict():
         f.write("\n".join(predictions))
 
     return jsonify({MESSAGE: COMPLETED, OUTPUT: predictions}), 200
+
 
 def merge_same_speaker_segments(results):
     if not results:
@@ -304,19 +298,26 @@ def predict_QCNN():
     import numpy as np
 
     audio_file = "./20_percent_test/test_segment_1.wav"
-    
+
     try:
         audio_data, sample_rate = sf.read(audio_file)
         if len(audio_data.shape) > 1:
             audio_data = np.mean(audio_data, axis=1)
     except Exception as e:
         print(f"Error loading audio file: {e}")
-    
+
     speaker, confidence = VoiceAuthenticator.authenticate_qcnn(audio_data, sample_rate)
-    
+
     print(f"Predicted speaker: {speaker}")
     print("Confidence scores:")
     for s, score in sorted(confidence.items(), key=lambda x: x[1], reverse=True):
         print(f"  {s}: {score:.4f}")
+
+
+@app.route('/train-qcnn-hmm', methods=['POST'])
+def train_model_qcnn_hmm():
+    return jsonify({MESSAGE: COMPLETED}), 200
+
+
 if __name__ == '__main__':
     app.run(debug=False)
