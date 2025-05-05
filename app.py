@@ -120,7 +120,13 @@ def diarization():
         segment_wav.seek(0)
 
         print(f"🏃‍♂️ start predict speaker from: {start_time} to: {end_time}")
-        predict_speaker = authenticator.authenticate(segment_wav.read())
+        try:
+            audio_data, sample_rate = sf.read(segment_wav)
+            if len(audio_data.shape) > 1:
+                audio_data = np.mean(audio_data, axis=1)
+        except Exception as e:
+            print(f"Error loading audio file: {e}")
+        predict_speaker = authenticator.authenticate_qcnn(audio_data, sample_rate)
         segment_wav.seek(0)
         segment_file = FileStorage(
             stream=segment_wav,
@@ -491,5 +497,26 @@ def merge_same_speaker_segments(results):
     merged_results.append(current_segment)
     return merged_results
 
+
+@app.route("/predict_QCNN", methods=["POST"])
+def predict_QCNN():
+    import soundfile as sf
+    import numpy as np
+
+    audio_file = "./20_percent_test/test_segment_1.wav"
+    
+    try:
+        audio_data, sample_rate = sf.read(audio_file)
+        if len(audio_data.shape) > 1:
+            audio_data = np.mean(audio_data, axis=1)
+    except Exception as e:
+        print(f"Error loading audio file: {e}")
+    
+    speaker, confidence = VoiceAuthenticator.authenticate_qcnn(audio_data, sample_rate)
+    
+    print(f"Predicted speaker: {speaker}")
+    print("Confidence scores:")
+    for s, score in sorted(confidence.items(), key=lambda x: x[1], reverse=True):
+        print(f"  {s}: {score:.4f}")
 if __name__ == '__main__':
     app.run(debug=False)
