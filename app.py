@@ -1,14 +1,15 @@
 import json
 import os
 import pickle
-import time
 import wave
 from datetime import timedelta
 from io import BytesIO
 
 import librosa
+import numpy as np
 import soundfile as sf
 from flask import Flask, request, jsonify
+from openai import OpenAI
 from werkzeug.datastructures import FileStorage
 
 from modules.authenticate import VoiceAuthenticator
@@ -35,26 +36,14 @@ from modules.trainner import Trainner
 
 authenticator = VoiceAuthenticator()
 batch_trainer = BatchTrainer()
-hf_token = os.getenv("HF_TOKEN")
+
 hf_token_full_access = os.getenv("HF_TOKEN_FULL_ACCESS")
 
-from transformers import (Wav2Vec2ForCTC, Wav2Vec2Processor, AutoModelForSeq2SeqLM, AutoTokenizer, Pipeline, pipeline)
-processor = Wav2Vec2Processor.from_pretrained("anuragshas/wav2vec2-large-xlsr-53-vietnamese", token=hf_token_full_access)
-model = Wav2Vec2ForCTC.from_pretrained("anuragshas/wav2vec2-large-xlsr-53-vietnamese", token=hf_token_full_access)
-
-summary_tokenizer = AutoTokenizer.from_pretrained("VietAI/vit5-base", token=hf_token_full_access)
-summary_model = AutoModelForSeq2SeqLM.from_pretrained("VietAI/vit5-base", token=hf_token_full_access)
+from transformers import (Pipeline, pipeline)
 
 from pyannote.audio import Pipeline
 
 transcriber = pipeline("automatic-speech-recognition", model="vinai/PhoWhisper-small", token=hf_token_full_access)
-
-# model_path = "vinai/PhoGPT-4B-Chat"
-# config = AutoConfig.from_pretrained(model_path, trust_remote_code=True, token="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")
-# config.init_device="meta"
-# phoModel = AutoModelForCausalLM.from_pretrained(model_path, config=config, torch_dtype=torch.bfloat16, trust_remote_code=True, token="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")
-# tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True, token="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")
-# PROMPT_TEMPLATE = "### Câu hỏi: {instruction}\n### Trả lời:"
 
 @app.route("/diarization", methods=["POST"])
 def diarization():
@@ -76,7 +65,7 @@ def diarization():
 
     pipeline = Pipeline.from_pretrained(
         "pyannote/speaker-diarization-3.1",
-        use_auth_token=hf_token)
+        use_auth_token=hf_token_full_access)
 
     print("prepare pipeline...")
     diarization = pipeline(audio_io)
@@ -89,7 +78,7 @@ def diarization():
         if not current_group:
             current_group = [(turn, speaker)]
         else:
-            last_turn, last_speaker = current_group[-1]
+            _, last_speaker = current_group[-1]
             if speaker == last_speaker:
                 current_group.append((turn, speaker))
             else:
@@ -120,14 +109,23 @@ def diarization():
         segment_wav.seek(0)
 
         print(f"🏃‍♂️ start predict speaker from: {start_time} to: {end_time}")
+
         try:
             audio_data, sample_rate = sf.read(segment_wav)
             if len(audio_data.shape) > 1:
                 audio_data = np.mean(audio_data, axis=1)
         except Exception as e:
             print(f"Error loading audio file: {e}")
-        predict_speaker = authenticator.authenticate_qcnn(audio_data, sample_rate)
+
+
+        predicted_speaker, confidence_scores = authenticator.authenticate_qcnn(
+            audio_data=audio_data,
+            sample_rate=sample_rate,
+            model_dir="mfcc_qcnn_hmm_models"
+        )
+
         segment_wav.seek(0)
+
         segment_file = FileStorage(
             stream=segment_wav,
             filename=f"segment_{start_time}_{end_time}.wav",
@@ -142,67 +140,29 @@ def diarization():
             results.append({
                 "start_time": start_time,
                 "end_time": end_time,
-                "speaker_data": predict_speaker.get("best_user", "unknown"),
+                "speaker_data": predicted_speaker,
                 "transcription": transcription
             })
         finally:
             if os.path.exists(segment_path):
                 os.unlink(segment_path)
 
+    dialogue_text = "\n".join(
+        f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in results
+    )
 
-    new_result = merge_same_speaker_segments(results)
-    #
-    # dialogue_text = "\n".join(
-    #     f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in new_result
-    # )
-    #
-    # instruction = "Đây là người nói và nội dung chưa đúng chính tả, hãy gọp những  và tóm tắt cuộc họp " + dialogue_text
-    # input_prompt = PROMPT_TEMPLATE.format_map({"instruction": instruction})
-    #
-    # input_ids = tokenizer(input_prompt, return_tensors="pt")
-    #
-    # outputs = phoModel.generate(
-    #     inputs=input_ids["input_ids"].to("cpu"),
-    #     attention_mask=input_ids["attention_mask"].to("cpu"),
-    #     do_sample=True,
-    #     temperature=1.0,
-    #     top_k=50,
-    #     top_p=0.9,
-    #     max_new_tokens=1024,
-    #     eos_token_id=tokenizer.eos_token_id,
-    #     pad_token_id=tokenizer.pad_token_id
-    # )
-    #
-    # response = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
-    # response = response.split("### Trả lời:")[1]
-    #
-    #
+    prompt = "Đây là đoạn hội thoại theo format người nói: nội dung. HÃY TÓM TẮT LẠI THEO TỪNG NGƯỜI NÓI. " + dialogue_text
 
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-
-    # input_text = f"tóm tắt: {dialogue_text}"
-    #
-    # input_ids = summary_tokenizer(
-    #     input_text,
-    #     return_tensors="pt",
-    #     max_length=512,
-    #     truncation=True
-    # ).input_ids
-    #
-    # output_ids = summary_model.generate(
-    #     input_ids,
-    #     max_length=150,
-    #     num_beams=4,
-    #     early_stopping=True
-    # )
-    # summary = summary_tokenizer.decode(output_ids[0], skip_special_tokens=True)
-    #
-    # json_file = "test_voice/meeting_10032025/speech.json"
-    # export_results_to_json(merge_same_speaker_segments(results), json_file)
+    response = client.responses.create(
+        model="gpt-4.1",
+        input=prompt
+    )
 
     return jsonify({
         "message": "Diarization completed successfully.",
-        "results": results,
+        "results": response.output_text,
     }), 200
 
 
@@ -214,104 +174,14 @@ def export_results_to_json(results, json_file_path):
     except Exception as e:
         print(f"An error occurred while writing to the JSON file: {e}")
 
-@app.route('/deprecated/train', methods=['POST'])
-def deprecated_train():
-    try:
-        user_id = request.form.get('user_id')
-        if not user_id:
-            return jsonify({"error": "user_id is required"}), 400
 
-        audio_file = request.files.get('audio_file')
-        script_file = request.files.get('script_file')
-        if not audio_file or not script_file:
-            return jsonify({"error": "Both audio_file and script_file are required"}), 400
 
-        user_dir = os.path.join("train_voice", user_id)
-        os.makedirs(user_dir, exist_ok=True)
 
-        audio_path = os.path.join(user_dir, "raw.WAV")
-        script_path = os.path.join(user_dir, "script.txt")
-        audio_file.save(audio_path)
-        script_file.save(script_path)
 
-        trainer = Trainner(train_dir="train_voice")
-        result = trainer.train_user_model(user_dir)
 
-        if not result["success"]:
-            os.remove(audio_path)
-            os.remove(script_path)
-            return jsonify(result), 500
-
-        return jsonify(result), 200
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route('/train/batch', methods=['POST'])
-def train_batch():
-    try:
-        train_dir = request.json.get('train_dir', 'train_data') if request.is_json else 'train_data'
-        
-        result = batch_trainer.train_all(train_dir)
-        
-        if result["success"]:
-            return jsonify(result), 200
-        else:
-            return jsonify(result), 500
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e),
-        }), 500
-
-@app.route('/authenticate', methods=['POST'])
-def authenticate():
-    start_time = time.time()
-
-    if not request.files:
-        return jsonify({"error": NO_FILES_PROVIDED}), 400
-
-    try:
-        _, file = next(iter(request.files.items()))
-
-        if file.filename == '':
-            return jsonify({"error": "No selected file"}), 400
-
-        audio_bytes = file.read()
-        result = authenticator.authenticate(audio_bytes)
-
-        elapsed_time = time.time() - start_time 
-
-        response = {
-            "elapsed_time": elapsed_time,
-            **result
-        }
-
-        if result["success"]:
-            return jsonify(response), 200
-        else:
-            return jsonify(response), 400
-
-    except StopIteration:
-        return jsonify({"error": "No files in the request"}), 400
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-@app.route("/train-all", methods=["POST"])
-def train_all():
+@app.route("/train-all-hmm", methods=["POST"])
+def train_all_hmm():
     Trainner.train_hmm_model_all()
-    return jsonify({"message": "Completed"})
-
-@app.route("/cross-validation", methods=["POST"])
-def cross_validation():
-    Trainner.cross_validate_all_speakers()
     return jsonify({"message": "Completed"})
 
 @app.route("/train", methods=["POST"])
@@ -345,76 +215,6 @@ def train():
 
         print("✨ train speaker: \t", speaker)
         ModelManager.train_hmm_model(speaker, all_data)
-
-    return jsonify({MESSAGE: COMPLETED}), 200
-
-@app.route("/evaluation", methods=["POST"])
-def evaluation():
-    test_root = Config.TEST_VOICE
-    model_dir = Config.MODELS_DIR
-
-    for folder in os.listdir(test_root):
-        folder_path = os.path.join(test_root, folder)
-        if not os.path.isdir(folder_path):
-            continue
-
-        audio_path = next(
-            (os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith(".wav")), None)
-        script_path = next(
-            (os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith(".txt")), None)
-
-        if not audio_path or not script_path:
-            print(f"❌ Thiếu file .wav hoặc .txt trong: {folder_path}")
-            continue
-
-        print(f"🔍 Đang test: {folder_path}")
-
-        segments = []
-        with open(script_path, "r", encoding="utf-8") as f:
-            for line in f:
-                parts = line.strip().split()
-                if len(parts) >= 2:
-                    start_time = Utils.parse_time(parts[0])
-                    end_time = Utils.parse_time(parts[1])
-                    segments.append((start_time, end_time))
-
-        y, sr = librosa.load(audio_path, sr=None)
-
-        predictions = []
-        for start, end in segments:
-            segment = y[int(start * sr): int(end * sr)]
-            mfcc = FeatureExtractor.extract_mfcc_from_segment(segment, sr)
-            if mfcc is None:
-                predictions.append(f"{Utils.format_time(start)} {Utils.format_time(end)} Unknown")
-                continue
-
-            best_speaker = None
-            best_score = float("-inf")
-
-            for model_file in os.listdir(model_dir):
-                if not model_file.endswith(".pkl"):
-                    continue
-                speaker = model_file.replace(".pkl", "")
-                model_path = os.path.join(model_dir, model_file)
-
-                with open(model_path, "rb") as f:
-                    model = pickle.load(f)
-
-                try:
-                    score = model.score(mfcc)
-                    if score > best_score:
-                        best_score = score
-                        best_speaker = speaker
-                except Exception as e:
-                    print(f"⚠️ Lỗi khi predict với model {speaker}: {e}")
-
-            predictions.append(f"{Utils.format_time(start)} {Utils.format_time(end)} {best_speaker or 'Unknown'}")
-
-        result_path = os.path.join(folder_path, "script_predicted.txt")
-        with open(result_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(predictions))
-
-        print(f"✅ Đã ghi kết quả vào {result_path}")
 
     return jsonify({MESSAGE: COMPLETED}), 200
 
