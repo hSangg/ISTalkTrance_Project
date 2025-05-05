@@ -30,7 +30,6 @@ train/*
 /hmm_dvector_models
 /temp_train
 /temp_test
-/mfcc_qcnn_hmm_models
 /temp_wav
 /ok
 document_v2/*
