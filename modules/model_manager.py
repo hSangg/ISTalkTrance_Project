@@ -43,7 +43,6 @@ class ModelManager:
         
     def load_all_models(self):
         self.models = {}
-        print("os.path.exists(Config.MODELS_DIR): ", os.path.exists(Config.MODELS_DIR))
         if os.path.exists(Config.MODELS_DIR):
             for filename in os.listdir(Config.MODELS_DIR):
                 if filename.endswith('.pkl'):

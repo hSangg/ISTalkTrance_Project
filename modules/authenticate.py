@@ -1,12 +1,8 @@
-import numpy as np
+import json
 import os
 import pickle
-import json
+
 import numpy as np
-import librosa
-import warnings
-import torch
-import pennylane as qml
 
 from modules.feature_extractor import FeatureExtractor
 from modules.model_manager import ModelManager
@@ -78,26 +74,8 @@ class VoiceAuthenticator:
                 "error": str(e),
             }
 
+    @staticmethod
     def authenticate_qcnn(audio_data, sample_rate=16000, model_dir="mfcc_qcnn_hmm_models"):
-        """
-        Authenticate a speaker from audio data
-        
-        Parameters:
-        -----------
-        audio_data : numpy.ndarray
-            Audio data from a WAV file
-        sample_rate : int
-            Sample rate of the audio data (default: 16000)
-        model_dir : str
-            Directory containing trained models (default: "mfcc_qcnn_hmm_models")
-            
-        Returns:
-        --------
-        predicted_speaker : str
-            Name of the predicted speaker
-        confidence_scores : dict
-            Dictionary of confidence scores for each speaker
-        """
         try:
             with open(os.path.join(model_dir, "speakers.json"), "r") as f:
                 speakers = json.load(f)
