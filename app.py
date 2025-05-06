@@ -12,12 +12,15 @@ from openai import OpenAI
 from pyannote.audio import Pipeline
 from transformers import (Pipeline, pipeline)
 from werkzeug.datastructures import FileStorage
+import tempfile
+from werkzeug.utils import secure_filename
 
 from modules.authenticate import VoiceAuthenticator
 from modules.batch_trainer import BatchTrainer
 from modules.config import Config
 from modules.trainner import Trainner
 from modules.utils import Utils
+from modules.MFCC_QCNN_HMM import SpeakerIdentification
 
 COMPLETED = "Completed"
 ERROR = "error"
@@ -184,9 +187,67 @@ def predict_QCNN():
         print(f"  {s}: {score:.4f}")
 
 
+
+
+MESSAGE = "message"
+COMPLETED = "Training completed successfully"
+ERROR = "Error during training"
+MISSING_FILES = "Missing required files: script.txt and raw.wav"
+
 @app.route('/train-qcnn-hmm', methods=['POST'])
 def train_model_qcnn_hmm():
-    return jsonify({MESSAGE: COMPLETED}), 200
+    try:
+        if 'script' not in request.files or 'audio' not in request.files:
+            return jsonify({MESSAGE: MISSING_FILES}), 400
+        
+        script_file = request.files['script']
+        audio_file = request.files['audio']
+        
+        if script_file.filename == '' or audio_file.filename == '':
+            return jsonify({MESSAGE: MISSING_FILES}), 400
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            script_path = os.path.join(temp_dir, 'script.txt')
+            audio_path = os.path.join(temp_dir, 'raw.wav')
+            
+            script_file.save(script_path)
+            audio_file.save(audio_path)
+            
+            import torch
+            use_gpu = False
+            
+            si = SpeakerIdentification(use_gpu=use_gpu)
+            
+            speakers_data = si.parse_script(script_path)
+            
+            train_segments = {}
+            for speaker, segments in speakers_data.items():
+                train_segments[speaker] = [(audio_path, start, end) for start, end in segments]
+            
+            si.train(segments=train_segments)
+            
+            save_dir = si.save_dir
+            
+            stats = {
+                "num_speakers": len(train_segments),
+                "models_saved_at": save_dir,
+                "gpu_used": use_gpu
+            }
+            
+            return jsonify({
+                MESSAGE: COMPLETED,
+                "stats": stats
+            }), 200
+    
+    except Exception as e:
+        import traceback
+        print(f"Error in train_model_qcnn_hmm: {str(e)}")
+        print(traceback.format_exc())
+        
+        return jsonify({
+            MESSAGE: ERROR,
+            "error_details": str(e)
+        }), 500
 
 
 if __name__ == '__main__':
