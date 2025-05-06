@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+
 
 def time_to_seconds(time_str):
     """Convert HH:MM:SS time format to seconds."""
@@ -37,7 +37,6 @@ def process_diarization_file(input_file, output_file):
             file.write(f"{seg['start']} {seg['end']} {seg['speaker']}\n")
     
     print(f"Cleaned data has been written to {output_file}")
-
 
 input_file = "diarization_output.txt"  # Replace with your input file
 output_file = "script.txt"  # Replace with your desired output file
