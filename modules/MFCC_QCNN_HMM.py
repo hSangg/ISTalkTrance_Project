@@ -142,29 +142,57 @@ class SpeakerIdentification:
 
 
     def train(self, segments=None):
+        """
+        Train speaker identification models with feature caching
+        
+        Parameters:
+        -----------
+        segments : dict, optional
+            Dictionary mapping speaker names to lists of (audio_path, start_time, end_time) tuples
+        """
         train_data = segments if segments is not None else self.speakers
         
         print(f"Starting training... {len(train_data)} speakers to process")
         os.makedirs(self.save_dir, exist_ok=True)
-    
+        
+        features_dir = os.path.join(self.save_dir, "features")
+        os.makedirs(features_dir, exist_ok=True)
+
         for speaker, segments in train_data.items():
             print(f"\n🔹 Speaker: {speaker}, Expected Segments: {len(segments)}")
             all_features = []
+            
+            feature_path = os.path.join(features_dir, f"{speaker}_features.pkl")
+            if os.path.exists(feature_path):
+                print(f"Loading existing features for {speaker} from {feature_path}")
+                try:
+                    with open(feature_path, "rb") as f:
+                        existing_features = pickle.load(f)
+                        all_features = existing_features
+                    print(f"Loaded {len(all_features)} existing feature sets")
+                except Exception as e:
+                    print(f"Error loading existing features: {e}")
+            
             start_time = time.time()
+            new_features_count = 0
             
             for audio_path, start, end in segments:
-                
-                # Extract MFCC features
                 mfcc_features = self.extract_mfcc(audio_path, start, end)
                 
                 if len(mfcc_features) > 0:
-                    # Process through QCNN
                     q_features = self.process_qcnn(mfcc_features)
                     if q_features.shape[0] > 0:
                         all_features.append(q_features)
+                        new_features_count += 1
                 
             end_time = time.time()
             print(f"Feature extraction and transformation took {end_time - start_time:.2f} seconds.")
+            print(f"Added {new_features_count} new feature sets")
+            
+            if new_features_count > 0:
+                with open(feature_path, "wb") as f:
+                    pickle.dump(all_features, f)
+                print(f"Saved combined features to {feature_path}")
 
             if not all_features:
                 print(f"⚠️ No features extracted for {speaker}, skipping...")
@@ -175,8 +203,8 @@ class SpeakerIdentification:
             print(f"Training HMM for {speaker} with {features.shape} data points...")
             
             model = hmm.GaussianHMM(n_components=self.n_hmm_components, 
-                                   covariance_type="diag", 
-                                   n_iter=100, verbose=False)
+                                covariance_type="diag", 
+                                n_iter=100, verbose=False)
             model.fit(features)
             self.hmm_models[speaker] = model
             
@@ -184,21 +212,21 @@ class SpeakerIdentification:
             with open(model_path, "wb") as f:
                 pickle.dump(model, f)
             print(f"✅ Saved HMM model for {speaker} at {model_path}")
-    
+
             weights_path = os.path.join(self.save_dir, "qcnn_weights.pkl")
             with open(weights_path, "wb") as f:
                 pickle.dump(self.weights, f)
-    
+
             speakers_list_path = os.path.join(self.save_dir, "speakers.json")
             if os.path.exists(speakers_list_path):
                 with open(speakers_list_path, "r") as f:
                     speakers_list = json.load(f)
             else:
                 speakers_list = []
-    
+
             if speaker not in speakers_list:
                 speakers_list.append(speaker)
-    
+
             with open(speakers_list_path, "w") as f:
                 json.dump(speakers_list, f)
 
