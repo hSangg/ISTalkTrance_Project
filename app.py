@@ -1,26 +1,25 @@
 import os
+import tempfile
 import wave
 from datetime import timedelta
 from io import BytesIO
 
 import librosa
 import numpy as np
+import pyannote.audio
 import soundfile as sf
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from openai import OpenAI
-from pyannote.audio import Pipeline
-from transformers import (Pipeline, pipeline)
+from transformers import (pipeline)
 from werkzeug.datastructures import FileStorage
-import tempfile
-from werkzeug.utils import secure_filename
 
+from modules.MFCC_QCNN_HMM import SpeakerIdentification
 from modules.authenticate import VoiceAuthenticator
 from modules.batch_trainer import BatchTrainer
 from modules.config import Config
 from modules.trainner import Trainner
 from modules.utils import Utils
-from modules.MFCC_QCNN_HMM import SpeakerIdentification
 
 COMPLETED = "Completed"
 ERROR = "error"
@@ -36,13 +35,20 @@ app = Flask(__name__)
 CORS(app)
 Config.setup()
 
+hf_token_full_access = os.getenv("HF_TOKEN_FULL_ACCESS")
+openai_token = os.getenv("OPENAI_API_KEY")
+identification_threshold = os.getenv("IDENTIFICATION_THRESHOLD", 0.8)
+
 authenticator = VoiceAuthenticator()
 batch_trainer = BatchTrainer()
-hf_token_full_access = os.getenv("HF_TOKEN_FULL_ACCESS")
 transcriber = pipeline("automatic-speech-recognition", model="vinai/PhoWhisper-small", token=hf_token_full_access)
+pipeline = pyannote.audio.Pipeline.from_pretrained(
+    "pyannote/speaker-diarization-3.1",
+    use_auth_token=hf_token_full_access)
 
-@app.route("/diarization", methods=["POST"])
-def diarization():
+
+@app.route("/summarization", methods=["POST"])
+def summarization():
     if AUDIO not in request.files:
         return jsonify({ERROR: NO_FILES_PROVIDED}), 400
 
@@ -52,18 +58,13 @@ def diarization():
     audio_io = BytesIO(audio_bytes)
 
     with wave.open(BytesIO(audio_bytes), 'rb') as wav_file:
-        framerate = wav_file.getframerate()
-        channels = wav_file.getnchannels()
-        sampwidth = wav_file.getsampwidth()
+        wav_file.getframerate()
+        wav_file.getnchannels()
+        wav_file.getsampwidth()
 
     full_audio_io = BytesIO(audio_bytes)
     full_audio, sr = librosa.load(full_audio_io, sr=None, mono=True)
 
-    pipeline = Pipeline.from_pretrained(
-        "pyannote/speaker-diarization-3.1",
-        use_auth_token=hf_token_full_access)
-
-    print("prepare pipeline...")
     diarization = pipeline(audio_io)
 
     results = []
@@ -147,7 +148,7 @@ def diarization():
 
     prompt = "Đây là đoạn hội thoại theo format người nói: nội dung. HÃY TÓM TẮT LẠI THEO TỪNG NGƯỜI NÓI. " + dialogue_text
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(api_key=openai_token)
 
     response = client.responses.create(
         model="gpt-4.1",
@@ -156,7 +157,9 @@ def diarization():
 
     return jsonify({
         "message": "Diarization completed successfully.",
-        "results": response.output_text,
+        "speech": results,
+        "prompt": prompt,
+        "summarization": response.output_text,
     }), 200
 
 
@@ -251,4 +254,4 @@ def train_model_qcnn_hmm():
 
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(port=8080, debug=False)
