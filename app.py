@@ -1,6 +1,4 @@
-import json
 import os
-import pickle
 import wave
 from datetime import timedelta
 from io import BytesIO
@@ -18,8 +16,6 @@ from werkzeug.datastructures import FileStorage
 from modules.authenticate import VoiceAuthenticator
 from modules.batch_trainer import BatchTrainer
 from modules.config import Config
-from modules.feature_extractor import FeatureExtractor
-from modules.model_manager import ModelManager
 from modules.trainner import Trainner
 from modules.utils import Utils
 
@@ -161,136 +157,10 @@ def diarization():
     }), 200
 
 
-def export_results_to_json(results, json_file_path):
-    try:
-        with open(json_file_path, 'w', encoding='utf-8') as f:
-            json.dump(results, f, indent=4, ensure_ascii=False)
-        print(f"Successfully exported results to {json_file_path}")
-    except Exception as e:
-        print(f"An error occurred while writing to the JSON file: {e}")
-
-
 @app.route("/train-all-hmm", methods=["POST"])
 def train_all_hmm():
     Trainner.train_hmm_model_all()
     return jsonify({"message": "Completed"})
-
-
-@app.route("/train", methods=["POST"])
-def train():
-    if AUDIO not in request.files or SCRIPT not in request.files:
-        return jsonify({ERROR: NO_FILES_PROVIDED}), 400
-
-    user_dir = os.path.join(Config.TRAIN_VOICE, "")
-    os.makedirs(user_dir, exist_ok=True)
-
-    audio_file = request.files.get(AUDIO)
-    script_file = request.files.get(SCRIPT)
-    print("store data....")
-    audio_path, script_path = Utils.store_data(audio_file, script_file)
-
-    annotations = Utils.load_annotations(script_path)
-    new_speaker_data = FeatureExtractor.extract_append_features(audio_path, annotations)
-
-    for speaker, new_data in new_speaker_data.items():
-        all_data = new_data.copy()
-        for subfolder in [f.path for f in os.scandir(Config.TRAIN_VOICE) if f.is_dir()]:
-            annotation_file = os.path.join(subfolder, Config.SCRIPT_FILE)
-            audio_file = os.path.join(subfolder, Config.AUDIO_FILE)
-
-            if os.path.exists(annotation_file) and os.path.exists(audio_file):
-                existing_annotations = Utils.load_annotations(annotation_file)
-                existing_speaker_data = FeatureExtractor.extract_append_features(audio_file, existing_annotations)
-
-                if speaker in existing_speaker_data:
-                    all_data.extend(existing_speaker_data[speaker])
-
-        print("✨ train speaker: \t", speaker)
-        ModelManager.train_hmm_model(speaker, all_data)
-
-    return jsonify({MESSAGE: COMPLETED}), 200
-
-
-@app.route("/predict", methods=["POST"])
-def predict():
-    global start, end, best_speaker, best_score, mfcc
-    if AUDIO not in request.files or SCRIPT not in request.files:
-        return jsonify({ERROR: NO_FILES_PROVIDED}), 400
-
-    audio_file = request.files.get(AUDIO)
-    script_file = request.files.get(SCRIPT)
-    audio_path, script_path = Utils.store_data(audio_file, script_file)
-
-    segments = []
-    with open(script_path, 'r') as f:
-        for line in f:
-            parts = line.strip().split()
-            if len(parts) >= 2:
-                start_time = Utils.parse_time(parts[0])
-                end_time = Utils.parse_time((parts[1]))
-                segments.append((start_time, end_time))
-
-    y, sr = librosa.load(audio_path, sr=None)
-
-    predictions = []
-
-    for start, end in segments:
-        segment = y[int(start * sr): int(end * sr)]
-        mfcc = FeatureExtractor.extract_mfcc_from_segment(segment, sr)
-        best_speaker = None
-        best_score = float("-inf")
-
-        for model_file in os.listdir(Config.MODELS_DIR):
-            speaker = model_file.replace(MODEL_EXTENSION, "")
-            with open(os.path.join(Config.MODELS_DIR, model_file), "rb") as f:
-                model = pickle.load(f)
-
-            score = model.score(mfcc)
-            if score > best_score:
-                best_score = score
-                best_speaker = speaker
-
-        predictions.append(f"{Utils.format_time(start)} {Utils.format_time(end)} {best_speaker}")
-
-    with open(script_path, "w") as f:
-        f.write("\n".join(predictions))
-
-    return jsonify({MESSAGE: COMPLETED, OUTPUT: predictions}), 200
-
-
-def merge_same_speaker_segments(results):
-    if not results:
-        return []
-
-    merged_results = []
-    current_segment = {
-        "start_time": results[0]["start_time"],
-        "end_time": results[0]["end_time"],
-        "speaker_data": results[0]["speaker_data"],
-        "transcription": results[0]["transcription"]
-    }
-
-    for i in range(1, len(results)):
-        segment = results[i]
-        if segment["speaker_data"] == current_segment["speaker_data"]:
-            # Gộp đoạn lại
-            current_segment["end_time"] = segment["end_time"]
-            current_segment["transcription"] += " " + segment["transcription"]
-        else:
-            # Đẩy đoạn cũ vào danh sách kết quả
-            merged_results.append(current_segment)
-            # Bắt đầu đoạn mới
-            current_segment = {
-                "start_time": segment["start_time"],
-                "end_time": segment["end_time"],
-                "speaker_data": segment["speaker_data"],
-                "transcription": segment["transcription"]
-            }
-
-    # Thêm đoạn cuối cùng
-    merged_results.append(current_segment)
-    return merged_results
-
 
 @app.route("/predict_QCNN", methods=["POST"])
 def predict_QCNN():

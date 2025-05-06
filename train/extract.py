@@ -1,7 +1,7 @@
-from pyannote.audio import Pipeline
+import os
 from datetime import timedelta
-import torchaudio
-import os 
+
+from pyannote.audio import Pipeline
 
 hf_token = os.getenv("HF_TOKEN") 
 
