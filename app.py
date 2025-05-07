@@ -1,7 +1,7 @@
 import os
 import tempfile
 import wave
-from datetime import timedelta
+from datetime import timedelta, datetime
 from io import BytesIO
 
 import librosa
@@ -10,6 +10,7 @@ import pyannote.audio
 import soundfile as sf
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_pymongo import PyMongo
 from openai import OpenAI
 from transformers import (pipeline)
 from werkzeug.datastructures import FileStorage
@@ -35,6 +36,9 @@ app = Flask(__name__)
 CORS(app)
 Config.setup()
 
+app.config["MONGO_URI"] = os.getenv("MONGO_URI", 'mongodb+srv://thithanhcong222:Boylegend533@cluster0.dde4tjb.mongodb.net/twilio_db?retryWrites=true&w=majority&appName=Cluster0')
+mongo = PyMongo(app)
+
 hf_token_full_access = os.getenv("HF_TOKEN_FULL_ACCESS")
 openai_token = os.getenv("OPENAI_API_KEY")
 identification_threshold = os.getenv("IDENTIFICATION_THRESHOLD", 0.8)
@@ -47,12 +51,29 @@ pipeline = pyannote.audio.Pipeline.from_pretrained(
     use_auth_token=hf_token_full_access)
 
 
+class Room:
+    def __init__(self, room_name, summarization):
+        self.room_name = room_name
+        self.timestamp = datetime.utcnow()
+        self.summarization = summarization
+
+    def to_dict(self):
+        return {
+            "roomId": self.room_name,
+            "timestamp": self.timestamp,
+            "summarization": self.summarization
+        }
+
 @app.route("/summarization", methods=["POST"])
 def summarization():
     if AUDIO not in request.files:
         return jsonify({ERROR: NO_FILES_PROVIDED}), 400
 
     audio_file = request.files[AUDIO]
+    room_sid = request.form.get('roomSid')
+    room_name = request.form.get('roomName')
+    composition_sid = request.form.get('compositionSid')
+
     audio_bytes = audio_file.read()
 
     audio_io = BytesIO(audio_bytes)
@@ -155,6 +176,9 @@ def summarization():
         input=prompt
     )
 
+    summary = Room(room_name, response.output_text).to_dict()
+    mongo.db.rooms.insert_one(summary)
+
     return jsonify({
         "message": "Diarization completed successfully.",
         "speech": results,
@@ -162,6 +186,11 @@ def summarization():
         "summarization": response.output_text,
     }), 200
 
+
+@app.route('/rooms', methods=['GET'])
+def get_all_rooms():
+    rooms = list(mongo.db.rooms.find({}, {'_id': 0}))
+    return jsonify(rooms), 200
 
 @app.route("/train-all-hmm", methods=["POST"])
 def train_all_hmm():
