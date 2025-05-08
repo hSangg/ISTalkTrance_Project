@@ -36,7 +36,9 @@ app = Flask(__name__)
 CORS(app)
 Config.setup()
 
-app.config["MONGO_URI"] = os.getenv("MONGO_URI", 'mongodb+srv://thithanhcong222:Boylegend533@cluster0.dde4tjb.mongodb.net/twilio_db?retryWrites=true&w=majority&appName=Cluster0')
+mongo_url = os.getenv("MONGO_URI")
+
+app.config["MONGO_URI"] = mongo_url
 mongo = PyMongo(app)
 
 hf_token_full_access = os.getenv("HF_TOKEN_FULL_ACCESS")
@@ -51,18 +53,42 @@ pipeline = pyannote.audio.Pipeline.from_pretrained(
     use_auth_token=hf_token_full_access)
 
 
+class User:
+    def __init__(self, email, name, picture, google_id):
+        self.email = email
+        self.name = name
+        self.picture = picture
+        self.google_id = google_id
+
+    def to_dict(self):
+        return {
+            "email": self.email,
+            "name": self.name,
+            "picture": self.picture,
+            "googleId": self.google_id
+        }
+
 class Room:
-    def __init__(self, room_name, summarization):
+    def __init__(self, room_name, room_sid, summarization):
         self.room_name = room_name
         self.timestamp = datetime.utcnow()
         self.summarization = summarization
+        self.room_sid = room_sid
+        self.users = []
+
+    def add_user(self, user):
+        if isinstance(user, User):
+            self.users.append(user)
 
     def to_dict(self):
         return {
             "roomId": self.room_name,
-            "timestamp": self.timestamp,
-            "summarization": self.summarization
+            "timestamp": self.timestamp.isoformat(),
+            "summarization": self.summarization,
+            "roomSid": self.room_sid,
+            "users": [user.to_dict() for user in self.users]
         }
+
 
 @app.route("/summarization", methods=["POST"])
 def summarization():
@@ -70,9 +96,6 @@ def summarization():
         return jsonify({ERROR: NO_FILES_PROVIDED}), 400
 
     audio_file = request.files[AUDIO]
-    room_sid = request.form.get('roomSid')
-    room_name = request.form.get('roomName')
-    composition_sid = request.form.get('compositionSid')
 
     audio_bytes = audio_file.read()
 
@@ -175,12 +198,21 @@ def summarization():
         model="gpt-4.1",
         input=prompt
     )
+    room_sid = request.form.get('roomSid')
+    room_name = request.form.get('roomName')
+    composition_sid = request.form.get('compositionSid')
 
-    summary = Room(room_name, response.output_text).to_dict()
-    mongo.db.rooms.insert_one(summary)
+    result = mongo.db.rooms.update_one(
+        {"roomSid": room_sid},
+        {"$set": {"summarization": response.output_text, "timestamp": datetime.utcnow()}}
+    )
+
+    if result.matched_count == 0:
+        new_room = Room(room_name, room_sid, response.output_text)
+        mongo.db.rooms.insert_one(new_room.to_dict())
 
     return jsonify({
-        "message": "Diarization completed successfully.",
+        "message": "Summarization completed successfully.",
         "speech": results,
         "prompt": prompt,
         "summarization": response.output_text,
@@ -189,7 +221,7 @@ def summarization():
 
 @app.route('/rooms', methods=['GET'])
 def get_all_rooms():
-    rooms = list(mongo.db.rooms.find({}, {'_id': 0}))
+    rooms = list(mongo.db.rooms.find({}))
     return jsonify(rooms), 200
 
 @app.route("/train-all-hmm", methods=["POST"])
