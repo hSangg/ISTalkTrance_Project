@@ -8,6 +8,7 @@ import librosa
 import numpy as np
 import pyannote.audio
 import soundfile as sf
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_pymongo import PyMongo
@@ -21,6 +22,8 @@ from modules.batch_trainer import BatchTrainer
 from modules.config import Config
 from modules.trainner import Trainner
 from modules.utils import Utils
+
+load_dotenv()
 
 COMPLETED = "Completed"
 ERROR = "error"
@@ -37,7 +40,6 @@ CORS(app)
 Config.setup()
 
 mongo_url = os.getenv("MONGO_URI")
-
 app.config["MONGO_URI"] = mongo_url
 mongo = PyMongo(app)
 
@@ -51,7 +53,6 @@ transcriber = pipeline("automatic-speech-recognition", model="vinai/PhoWhisper-s
 pipeline = pyannote.audio.Pipeline.from_pretrained(
     "pyannote/speaker-diarization-3.1",
     use_auth_token=hf_token_full_access)
-
 
 class User:
     def __init__(self, email, name, picture, google_id):
@@ -82,7 +83,7 @@ class Room:
 
     def to_dict(self):
         return {
-            "roomId": self.room_name,
+            "roomName": self.room_name,
             "timestamp": self.timestamp.isoformat(),
             "summarization": self.summarization,
             "roomSid": self.room_sid,
