@@ -3,6 +3,7 @@ import tempfile
 import wave
 from datetime import timedelta
 from io import BytesIO
+import io
 
 import librosa
 import numpy as np
@@ -170,28 +171,30 @@ def train_all_hmm():
 
 @app.route("/predict_QCNN", methods=["POST"])
 def predict_QCNN():
-    import soundfile as sf
-    import numpy as np
+    if 'audio_file' not in request.files:
+        return jsonify({"error": "Missing 'audio_file' in request"}), 400
 
-    audio_file = "./20_percent_test/test_segment_1.wav"
+    file = request.files['audio_file']
 
     try:
-        audio_data, sample_rate = sf.read(audio_file)
+        # Đọc dữ liệu âm thanh từ file upload (dạng byte stream)
+        audio_data, sample_rate = sf.read(io.BytesIO(file.read()))
         if len(audio_data.shape) > 1:
-            audio_data = np.mean(audio_data, axis=1)
+            audio_data = np.mean(audio_data, axis=1)  # convert to mono nếu stereo
     except Exception as e:
-        print(f"Error loading audio file: {e}")
+        return jsonify({"error": f"Error reading audio file: {str(e)}"}), 500
 
-    speaker, confidence = VoiceAuthenticator.authenticate_qcnn(audio_data, sample_rate)
+    try:
+        # Gọi hàm nhận diện giọng nói
+        speaker, confidence = VoiceAuthenticator.authenticate_qcnn(audio_data, sample_rate)
 
-    print(f"Predicted speaker: {speaker}")
-    print("Confidence scores:")
-    for s, score in sorted(confidence.items(), key=lambda x: x[1], reverse=True):
-        print(f"  {s}: {score:.4f}")
-
-
-
-
+        return jsonify({
+            "predicted_speaker": speaker,
+            "confidence": {s: float(score) for s, score in confidence.items()}
+        })
+    except Exception as e:
+        return jsonify({"error": f"Model prediction error: {str(e)}"}), 500
+    
 MESSAGE = "message"
 COMPLETED = "Training completed successfully"
 ERROR = "Error during training"
