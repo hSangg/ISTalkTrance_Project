@@ -76,7 +76,32 @@ class VoiceAuthenticator:
 
     @staticmethod
     def authenticate_qcnn(audio_data, sample_rate=16000, model_dir="mfcc_qcnn_hmm_models"):
+        """
+        Authenticate speaker using QCNN and HMM models
+        
+        Parameters:
+        -----------
+        audio_data : array-like
+            Raw audio data
+        sample_rate : int
+            Sample rate of the audio
+        model_dir : str
+            Directory containing model files
+            
+        Returns:
+        --------
+        str
+            Predicted speaker
+        dict
+            Confidence scores for each speaker
+        """
+        import os
+        import json
+        import pickle
+        import numpy as np
+        
         try:
+            # Load speaker list and QCNN weights
             with open(os.path.join(model_dir, "speakers.json"), "r") as f:
                 speakers = json.load(f)
             
@@ -85,6 +110,7 @@ class VoiceAuthenticator:
         except FileNotFoundError:
             return "Error: Model files not found", {}
         
+        # Load HMM models for each speaker
         hmm_models = {}
         for speaker in speakers:
             model_path = os.path.join(model_dir, f"{speaker}.pkl")
@@ -97,15 +123,19 @@ class VoiceAuthenticator:
         if not hmm_models:
             return "Error: No speaker models available", {}
         
+        # Create feature extractor with loaded weights
         feature_extractor = FeatureExtractor(qcnn_weights)
         
+        # Extract features with the same processing used during training
         mfcc_features = feature_extractor.extract_mfcc(audio_data, sample_rate)
         
         if len(mfcc_features) == 0:
             return "Error: Failed to extract features", {}
         
+        # Process features through the quantum circuit
         test_features = feature_extractor.process_qcnn(mfcc_features)
         
+        # Score each speaker model
         scores = {}
         for speaker, model in hmm_models.items():
             try:
@@ -118,8 +148,10 @@ class VoiceAuthenticator:
         if not scores:
             return "unknown", {}
         
+        # Find the speaker with highest score
         predicted_speaker = max(scores.items(), key=lambda x: x[1])[0]
         
+        # Calculate confidence scores
         max_score = max(scores.values())
         confidence_scores = {s: np.exp(score - max_score) for s, score in scores.items()}
         
