@@ -314,6 +314,31 @@ def train_model_qcnn_hmm():
             "error_details": str(e)
         }), 500
 
+MODELS_DIR = "mfcc_qcnn_hmm_models"
+@app.route('/api/models', methods=['GET'])
+def list_models():
+    try:
+        if not os.path.exists(MODELS_DIR):
+            return jsonify({
+                "status": "error",
+                "message": f"Directory '{MODELS_DIR}' not found"
+            }), 404
+
+        models = [file for file in os.listdir(MODELS_DIR)
+                  if os.path.isfile(os.path.join(MODELS_DIR, file)) and file.endswith('.pkl')]
+
+        return jsonify({
+            "status": "success",
+            "count": len(models),
+            "models": models
+        })
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
 
 if __name__ == '__main__':
     app.run(port=8080, debug=False)
