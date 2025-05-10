@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, TensorDataset
 import time
 from datetime import datetime
 import librosa
-from feature_extractor import FeatureExtractor
+from modules.feature_extractor import FeatureExtractor
 
 warnings.filterwarnings('ignore')
 
