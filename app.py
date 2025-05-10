@@ -1,7 +1,7 @@
 import os
 import tempfile
 import wave
-from datetime import timedelta
+from datetime import timedelta, datetime
 from io import BytesIO
 import io
 
@@ -9,8 +9,10 @@ import librosa
 import numpy as np
 import pyannote.audio
 import soundfile as sf
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_pymongo import PyMongo
 from openai import OpenAI
 from transformers import (pipeline)
 from werkzeug.datastructures import FileStorage
@@ -21,6 +23,8 @@ from modules.batch_trainer import BatchTrainer
 from modules.config import Config
 from modules.trainner import Trainner
 from modules.utils import Utils
+
+load_dotenv()
 
 COMPLETED = "Completed"
 ERROR = "error"
@@ -36,6 +40,10 @@ app = Flask(__name__)
 CORS(app)
 Config.setup()
 
+mongo_url = os.getenv("MONGO_URI")
+app.config["MONGO_URI"] = mongo_url
+mongo = PyMongo(app)
+
 hf_token_full_access = os.getenv("HF_TOKEN_FULL_ACCESS")
 openai_token = os.getenv("OPENAI_API_KEY")
 identification_threshold = os.getenv("IDENTIFICATION_THRESHOLD", 0.8)
@@ -47,6 +55,42 @@ pipeline = pyannote.audio.Pipeline.from_pretrained(
     "pyannote/speaker-diarization-3.1",
     use_auth_token=hf_token_full_access)
 
+class User:
+    def __init__(self, email, name, picture, google_id):
+        self.email = email
+        self.name = name
+        self.picture = picture
+        self.google_id = google_id
+
+    def to_dict(self):
+        return {
+            "email": self.email,
+            "name": self.name,
+            "picture": self.picture,
+            "googleId": self.google_id
+        }
+
+class Room:
+    def __init__(self, room_name, room_sid, summarization):
+        self.room_name = room_name
+        self.timestamp = datetime.utcnow()
+        self.summarization = summarization
+        self.room_sid = room_sid
+        self.users = []
+
+    def add_user(self, user):
+        if isinstance(user, User):
+            self.users.append(user)
+
+    def to_dict(self):
+        return {
+            "roomName": self.room_name,
+            "timestamp": self.timestamp.isoformat(),
+            "summarization": self.summarization,
+            "roomSid": self.room_sid,
+            "users": [user.to_dict() for user in self.users]
+        }
+
 
 @app.route("/summarization", methods=["POST"])
 def summarization():
@@ -54,6 +98,7 @@ def summarization():
         return jsonify({ERROR: NO_FILES_PROVIDED}), 400
 
     audio_file = request.files[AUDIO]
+
     audio_bytes = audio_file.read()
 
     audio_io = BytesIO(audio_bytes)
@@ -155,14 +200,31 @@ def summarization():
         model="gpt-4.1",
         input=prompt
     )
+    room_sid = request.form.get('roomSid')
+    room_name = request.form.get('roomName')
+    composition_sid = request.form.get('compositionSid')
+
+    result = mongo.db.rooms.update_one(
+        {"roomSid": room_sid},
+        {"$set": {"summarization": response.output_text, "timestamp": datetime.utcnow()}}
+    )
+
+    if result.matched_count == 0:
+        new_room = Room(room_name, room_sid, response.output_text)
+        mongo.db.rooms.insert_one(new_room.to_dict())
 
     return jsonify({
-        "message": "Diarization completed successfully.",
+        "message": "Summarization completed successfully.",
         "speech": results,
         "prompt": prompt,
         "summarization": response.output_text,
     }), 200
 
+
+@app.route('/rooms', methods=['GET'])
+def get_all_rooms():
+    rooms = list(mongo.db.rooms.find({}))
+    return jsonify(rooms), 200
 
 @app.route("/train-all-hmm", methods=["POST"])
 def train_all_hmm():
@@ -253,6 +315,31 @@ def train_model_qcnn_hmm():
         return jsonify({
             MESSAGE: ERROR,
             "error_details": str(e)
+        }), 500
+
+MODELS_DIR = "mfcc_qcnn_hmm_models"
+@app.route('/api/models', methods=['GET'])
+def list_models():
+    try:
+        if not os.path.exists(MODELS_DIR):
+            return jsonify({
+                "status": "error",
+                "message": f"Directory '{MODELS_DIR}' not found"
+            }), 404
+
+        models = [file for file in os.listdir(MODELS_DIR)
+                  if os.path.isfile(os.path.join(MODELS_DIR, file)) and file.endswith('.pkl')]
+
+        return jsonify({
+            "status": "success",
+            "count": len(models),
+            "models": models
+        })
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
         }), 500
 
 
