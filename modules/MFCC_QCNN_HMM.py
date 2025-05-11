@@ -59,7 +59,7 @@ class SpeakerIdentification:
             return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
         
         self.qcnn = qcnn
-        self.weights = np.random.randn(n_qubits * 2 + 1)  # Adjusted weight size for the model
+        self.weights = np.full(n_qubits * 2 + 1, 0.5)
 
     def extract_mfcc(self, audio_path, start_time, end_time):
         """Extract MFCC features from audio segment"""
@@ -298,7 +298,11 @@ def save_model(si, save_dir="mfcc_qcnn_hmm_models"):
 def cross_validate(base_folder, k=3, save_dir="crossval_models", log_file="crossval_log.txt", use_gpu=True):
     os.makedirs(save_dir, exist_ok=True)
 
-
+    def append_log(lines):
+            with open(log_file, "a", encoding="utf-8") as f:
+                for line in lines:
+                    timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+                    f.write(f"{timestamp} {line}\n")
 
     si_base = SpeakerIdentification(use_gpu=use_gpu)
 
@@ -406,5 +410,5 @@ if __name__ == "__main__":
     else:
         print("No GPU detected, falling back to CPU")
     
-    train_voice_folder = "../train_voice"
+    train_voice_folder = "../reserve"
     cross_validate(train_voice_folder, k=3, use_gpu=use_gpu)

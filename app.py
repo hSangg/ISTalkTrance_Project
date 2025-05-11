@@ -192,32 +192,9 @@ def summarization():
         f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in results
     )
 
-    prompt = "Đây là đoạn hội thoại theo format người nói: nội dung. HÃY TÓM TẮT LẠI THEO TỪNG NGƯỜI NÓI. " + dialogue_text
-
-    client = OpenAI(api_key=openai_token)
-
-    response = client.responses.create(
-        model="gpt-4.1",
-        input=prompt
-    )
-    room_sid = request.form.get('roomSid')
-    room_name = request.form.get('roomName')
-    composition_sid = request.form.get('compositionSid')
-
-    result = mongo.db.rooms.update_one(
-        {"roomSid": room_sid},
-        {"$set": {"summarization": response.output_text, "timestamp": datetime.utcnow()}}
-    )
-
-    if result.matched_count == 0:
-        new_room = Room(room_name, room_sid, response.output_text)
-        mongo.db.rooms.insert_one(new_room.to_dict())
-
     return jsonify({
         "message": "Summarization completed successfully.",
         "speech": results,
-        "prompt": prompt,
-        "summarization": response.output_text,
     }), 200
 
 
