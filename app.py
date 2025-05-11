@@ -1,9 +1,9 @@
+import io
 import os
 import tempfile
 import wave
 from datetime import timedelta, datetime
 from io import BytesIO
-import io
 
 import librosa
 import numpy as np
@@ -223,7 +223,7 @@ def summarization():
 
 @app.route('/rooms', methods=['GET'])
 def get_all_rooms():
-    rooms = list(mongo.db.rooms.find({}))
+    rooms = list(mongo.db.rooms.find({}).sort("timestamp", -1))
     return jsonify(rooms), 200
 
 @app.route("/train-all-hmm", methods=["POST"])
