@@ -94,6 +94,9 @@ class Room:
 
 @app.route("/summarization", methods=["POST"])
 def summarization():
+    print("start summarization......")
+
+
     if AUDIO not in request.files:
         return jsonify({ERROR: NO_FILES_PROVIDED}), 400
 
@@ -114,35 +117,16 @@ def summarization():
     diarization = pipeline(audio_io)
 
     results = []
-    grouped_turns = []
-    current_group = []
 
     for turn, _, speaker in diarization.itertracks(yield_label=True):
-        if not current_group:
-            current_group = [(turn, speaker)]
-        else:
-            _, last_speaker = current_group[-1]
-            if speaker == last_speaker:
-                current_group.append((turn, speaker))
-            else:
-                grouped_turns.append(current_group)
-                current_group = [(turn, speaker)]
-
-    if current_group:
-        grouped_turns.append(current_group)
-
-    for group in grouped_turns:
-        start_time_sec = group[0][0].start
-        end_time_sec = group[-1][0].end
-
-        start_time = str(timedelta(seconds=int(start_time_sec)))
-        end_time = str(timedelta(seconds=int(end_time_sec)))
+        start_time = str(timedelta(seconds=int(turn.start)))
+        end_time = str(timedelta(seconds=int(turn.end)))
 
         if start_time == end_time:
             continue
 
-        start_sample = int(start_time_sec * sr)
-        end_sample = int(end_time_sec * sr)
+        start_sample = int(turn.start * sr)
+        end_sample = int(turn.end * sr)
 
         audio_segment = full_audio[start_sample:end_sample]
 
@@ -175,26 +159,46 @@ def summarization():
 
         segment_path = Utils.store_WAV(segment_file)
 
-        try:
-            transcription = transcriber(segment_path)['text']
 
-            results.append({
-                "start_time": start_time,
-                "end_time": end_time,
-                "speaker_data": predicted_speaker,
-                "transcription": transcription
-            })
-        finally:
-            if os.path.exists(segment_path):
-                os.unlink(segment_path)
+        transcription = transcriber(segment_path)['text']
+
+        results.append({
+            "start_time": start_time,
+            "end_time": end_time,
+            "speaker_data": predicted_speaker,
+            "transcription": transcription
+        })
 
     dialogue_text = "\n".join(
         f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in results
     )
 
+    prompt = "Đây là đoạn hội thoại theo format người nói: nội dung. HÃY TÓM TẮT LẠI THEO TỪNG NGƯỜI NÓI. " + dialogue_text
+
+    client = OpenAI(api_key=openai_token)
+
+    response = client.responses.create(
+        model="gpt-4.1",
+        input=prompt
+    )
+    room_sid = request.form.get('roomSid')
+    room_name = request.form.get('roomName')
+    composition_sid = request.form.get('compositionSid')
+
+    result = mongo.db.rooms.update_one(
+        {"roomSid": room_sid},
+        {"$set": {"summarization": response.output_text, "timestamp": datetime.utcnow()}}
+    )
+
+    if result.matched_count == 0:
+        new_room = Room(room_name, room_sid, response.output_text)
+        mongo.db.rooms.insert_one(new_room.to_dict())
+
     return jsonify({
         "message": "Summarization completed successfully.",
         "speech": results,
+        "prompt": prompt,
+        "summarization": response.output_text,
     }), 200
 
 
