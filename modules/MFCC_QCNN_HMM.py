@@ -31,6 +31,7 @@ class SpeakerIdentification:
         else:
             print("GPU not available, using CPU instead.")
         
+        # MFCC parameters
         self.n_mfcc = 20
         self.n_fft = 2048
         self.hop_length = 512
@@ -63,12 +64,14 @@ class SpeakerIdentification:
     def extract_mfcc(self, audio_path, start_time, end_time):
         """Extract MFCC features from audio segment"""
         try:
-            y, sr = librosa.load(audio_path, sr=16000)
+            # Load audio segment
+            y, sr = librosa.load(audio_path, sr=16000)  # Load at 16kHz
             start_sample = int(start_time * sr)
             end_sample = int(end_time * sr)
             
             audio_segment = y[start_sample:end_sample]
             
+            # Extract MFCCs
             mfccs = librosa.feature.mfcc(
                 y=audio_segment, 
                 sr=sr, 
@@ -77,14 +80,17 @@ class SpeakerIdentification:
                 hop_length=self.hop_length
             )
             
+            # Calculate statistics over time to get fixed-length features
             mfcc_mean = np.mean(mfccs, axis=1)
             mfcc_std = np.std(mfccs, axis=1)
             
+            # Combine mean and std for a more comprehensive feature vector
             mfcc_features = np.concatenate([mfcc_mean, mfcc_std])
             
             return mfcc_features
         except Exception as e:
             print(f"Error extracting MFCC: {e}")
+            # Return empty array if extraction fails
             return np.array([])
 
 
@@ -96,7 +102,7 @@ class SpeakerIdentification:
         
         for line in lines:
             parts = line.strip().split()
-            if len(parts) >= 3:
+            if len(parts) >= 3:  # Ensure we have at least start time, end time, and speaker
                 start_time = self.time_to_seconds(parts[0])
                 end_time = self.time_to_seconds(parts[1])
                 speaker = parts[2]
