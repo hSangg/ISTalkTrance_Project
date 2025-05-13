@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, TensorDataset
 import time
 from datetime import datetime
 import librosa
-from modules.feature_extractor import FeatureExtractor
+
 
 warnings.filterwarnings('ignore')
 
@@ -24,25 +24,25 @@ class SpeakerIdentification:
         self.hmm_models = {}
         self.save_dir = "mfcc_qcnn_hmm_models"
         self.use_gpu = use_gpu and torch.cuda.is_available()
-        
+
         self.device = torch.device("cuda" if self.use_gpu else "cpu")
         if self.use_gpu:
             print(f"GPU is available. Using: {torch.cuda.get_device_name(0)}")
         else:
             print("GPU not available, using CPU instead.")
-        
+
         # MFCC parameters
         self.n_mfcc = 20
         self.n_fft = 2048
         self.hop_length = 512
-        
+
         dev = qml.device("default.qubit" if self.use_gpu else "default.qubit", wires=n_qubits)
         @qml.qnode(dev)
         def qcnn(inputs, weights, n_qubits=4, num_layers=2):
             for i in range(n_qubits):
                 qml.Hadamard(wires=i)
                 qml.RY(inputs[i], wires=i)
-            
+
             for layer in range(num_layers):
                 for i in range(n_qubits-1):
                     qml.CRZ(weights[layer * (n_qubits-1) + i], wires=[i, i+1])
@@ -50,16 +50,16 @@ class SpeakerIdentification:
                     weight_idx = layer * n_qubits + i
                     if weight_idx < len(weights):
                         qml.RY(weights[weight_idx], wires=i)
-            
+
             for i in range(0, n_qubits, 2):
                 if i + 1 < n_qubits:
                     qml.CNOT(wires=[i, i+1])
                     qml.RY(weights[-1] * np.pi, wires=i+1)
-            
+
             return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
-        
+
         self.qcnn = qcnn
-        self.weights = np.full(n_qubits * 2 + 1, 0.5)
+        self.weights = np.random.randn(n_qubits * 2 + 1)  # Adjusted weight size for the model
 
     def extract_mfcc(self, audio_path, start_time, end_time):
         """Extract MFCC features from audio segment"""
@@ -68,9 +68,9 @@ class SpeakerIdentification:
             y, sr = librosa.load(audio_path, sr=16000)  # Load at 16kHz
             start_sample = int(start_time * sr)
             end_sample = int(end_time * sr)
-            
+
             audio_segment = y[start_sample:end_sample]
-            
+
             # Extract MFCCs
             mfccs = librosa.feature.mfcc(
                 y=audio_segment, 
@@ -79,38 +79,62 @@ class SpeakerIdentification:
                 n_fft=self.n_fft, 
                 hop_length=self.hop_length
             )
-            
+
             # Calculate statistics over time to get fixed-length features
             mfcc_mean = np.mean(mfccs, axis=1)
             mfcc_std = np.std(mfccs, axis=1)
-            
+
             # Combine mean and std for a more comprehensive feature vector
             mfcc_features = np.concatenate([mfcc_mean, mfcc_std])
-            
+
             return mfcc_features
         except Exception as e:
             print(f"Error extracting MFCC: {e}")
             # Return empty array if extraction fails
             return np.array([])
 
+    def process_qcnn(self, mfcc_features):
+        """Process MFCC features through QCNN"""
+        quantum_features = []
+        
+        # Ensure we have enough features for n_qubits
+        if len(mfcc_features) < self.n_qubits:
+            mfcc_features = np.pad(mfcc_features, (0, self.n_qubits - len(mfcc_features)))
+        
+        # Use first n_qubits features for quantum circuit
+        input_features = mfcc_features[:self.n_qubits]
+        
+        # Scale features to appropriate range for quantum circuit
+        input_features = np.clip(input_features, -np.pi, np.pi)
+        
+        q_output = random_qcircuit(input_features, self.n_qubits)
+        quantum_features.append(q_output)
+        
+        # Combine classical and quantum features
+        combined_features = np.concatenate([
+            mfcc_features,  # Original MFCC features
+            np.array(quantum_features).flatten()  # Quantum transformed features
+        ])
+        
+        return combined_features.reshape(1, -1)
 
     def parse_script(self, script_path):
         speakers_local = {}
-        
+
         with open(script_path, 'r') as f:
             lines = f.readlines()
-        
+
         for line in lines:
             parts = line.strip().split()
             if len(parts) >= 3:  # Ensure we have at least start time, end time, and speaker
                 start_time = self.time_to_seconds(parts[0])
                 end_time = self.time_to_seconds(parts[1])
                 speaker = parts[2]
-                
+
                 if speaker not in speakers_local:
                     speakers_local[speaker] = []
                 speakers_local[speaker].append((start_time, end_time))
-        
+
         return speakers_local
 
     def time_to_seconds(self, time_str):
@@ -129,20 +153,20 @@ class SpeakerIdentification:
             Dictionary mapping speaker names to lists of (audio_path, start_time, end_time) tuples
         """
         train_data = segments if segments is not None else self.speakers
-        
+
         print(f"Starting training... {len(train_data)} speakers to process")
         os.makedirs(self.save_dir, exist_ok=True)
-        
+
         features_dir = os.path.join(self.save_dir, "features")
         os.makedirs(features_dir, exist_ok=True)
-        
-        # Define a proper feature extractor using the QCNN weights
-        feature_extractor = FeatureExtractor(self.weights, n_qubits=self.n_qubits)
+
+
+
 
         for speaker, segments in train_data.items():
             print(f"\n🔹 Speaker: {speaker}, Expected Segments: {len(segments)}")
             all_features = []
-            
+
             feature_path = os.path.join(features_dir, f"{speaker}_features.pkl")
             if os.path.exists(feature_path):
                 print(f"Loading existing features for {speaker} from {feature_path}")
@@ -153,30 +177,30 @@ class SpeakerIdentification:
                     print(f"Loaded {len(all_features)} existing feature sets")
                 except Exception as e:
                     print(f"Error loading existing features: {e}")
-            
+
             start_time = time.time()
             new_features_count = 0
-            
+
             for audio_path, start, end in segments:
-                # Load audio segment
-                y, sr = librosa.load(audio_path, sr=16000)
-                start_sample = int(start * sr)
-                end_sample = int(end * sr)
-                audio_segment = y[start_sample:end_sample]
-                
-                # Extract and process features with the same method that will be used during authentication
-                mfcc_features = feature_extractor.extract_mfcc(audio_segment, sr)
-                
+                mfcc_features = self.extract_mfcc(audio_path, start, end)
+
+
+
+
+
+
+
+
                 if len(mfcc_features) > 0:
-                    q_features = feature_extractor.process_qcnn(mfcc_features)
+                    q_features = self.process_qcnn(mfcc_features)
                     if q_features.shape[0] > 0:
                         all_features.append(q_features)
                         new_features_count += 1
-                
+
             end_time = time.time()
             print(f"Feature extraction and transformation took {end_time - start_time:.2f} seconds.")
             print(f"Added {new_features_count} new feature sets")
-            
+
             if new_features_count > 0:
                 with open(feature_path, "wb") as f:
                     pickle.dump(all_features, f)
@@ -185,17 +209,17 @@ class SpeakerIdentification:
             if not all_features:
                 print(f"⚠️ No features extracted for {speaker}, skipping...")
                 continue
-                
+
             features = np.vstack(all_features)
-            
+
             print(f"Training HMM for {speaker} with {features.shape} data points...")
-            
+
             model = hmm.GaussianHMM(n_components=self.n_hmm_components, 
                                 covariance_type="diag", 
                                 n_iter=100, verbose=False)
             model.fit(features)
             self.hmm_models[speaker] = model
-            
+
             model_path = os.path.join(self.save_dir, f"{speaker}.pkl")
             with open(model_path, "wb") as f:
                 pickle.dump(model, f)
@@ -219,44 +243,14 @@ class SpeakerIdentification:
                 json.dump(speakers_list, f)
 
     def predict(self, test_audio_path, start_time, end_time):
-        """
-        Predict speaker from audio segment
-        
-        Parameters:
-        -----------
-        test_audio_path : str
-            Path to the audio file
-        start_time : float
-            Start time of the segment in seconds
-        end_time : float
-            End time of the segment in seconds
-            
-        Returns:
-        --------
-        str
-            Predicted speaker
-        dict
-            Confidence scores for each speaker
-        """
-        # Load audio segment
-        y, sr = librosa.load(test_audio_path, sr=16000)
-        start_sample = int(start_time * sr)
-        end_sample = int(end_time * sr)
-        audio_segment = y[start_sample:end_sample]
-        
-        # Create feature extractor with the saved weights
-        feature_extractor = FeatureExtractor(self.weights, n_qubits=self.n_qubits)
-        
-        # Extract features using the same process as during training
-        mfcc_features = feature_extractor.extract_mfcc(audio_segment, sr)
-        
+        mfcc_features = self.extract_mfcc(test_audio_path, start_time, end_time)
         if len(mfcc_features) == 0:
             print(f"⚠️ Failed to extract MFCC features from {test_audio_path} at {start_time}-{end_time}")
             # Return default prediction if extraction fails
             return list(self.hmm_models.keys())[0] if self.hmm_models else "unknown", {}
-        
-        test_features = feature_extractor.process_qcnn(mfcc_features)
-        
+
+        test_features = self.process_qcnn(mfcc_features)
+
         scores = {}
         for speaker, model in self.hmm_models.items():
             try:
@@ -265,44 +259,57 @@ class SpeakerIdentification:
             except Exception as e:
                 print(f"Error scoring {speaker}: {e}")
                 scores[speaker] = float('-inf')
-        
+
         if not scores:
             return "unknown", {}
-            
+
         predicted_speaker = max(scores.items(), key=lambda x: x[1])[0]
-        
-        # Calculate confidence scores
-        max_score = max(scores.values())
-        confidence_scores = {s: np.exp(score - max_score) for s, score in scores.items()}
-        
-        return predicted_speaker, confidence_scores
+        return predicted_speaker, scores
+    
+
+def random_qcircuit(inputs, num_qubits=4):
+    dev = qml.device("default.qubit", wires=num_qubits)
+
+    @qml.qnode(dev)
+    def circuit(inputs):
+        for i in range(num_qubits):
+            qml.Hadamard(wires=i)
+            qml.RY(np.random.uniform(-np.pi, np.pi), wires=i)
+        for i in range(num_qubits - 1):
+            qml.CNOT(wires=[i, i + 1])
+            qml.RY(np.random.uniform(-np.pi, np.pi), wires=i + 1)
+        return [qml.expval(qml.PauliZ(i)) for i in range(num_qubits)]
+
+    return circuit(inputs)
 
 def save_model(si, save_dir="mfcc_qcnn_hmm_models"):
     os.makedirs(save_dir, exist_ok=True)
-    
+
     for speaker, model in si.hmm_models.items():
         model_path = os.path.join(save_dir, f"{speaker}.pkl")
         with open(model_path, "wb") as f:
             pickle.dump(model, f)
-    
+
     weights_path = os.path.join(save_dir, "qcnn_weights.pkl")
     with open(weights_path, "wb") as f:
         pickle.dump(si.weights, f)
-    
+
     speakers_path = os.path.join(save_dir, "speakers.json")
     with open(speakers_path, "w") as f:
         json.dump(list(si.hmm_models.keys()), f)
-    
+
     print(f"✅ Models saved in {save_dir}")
 
-def cross_validate(base_folder, k=3, save_dir="crossval_models", log_file="crossval_log.txt", use_gpu=True):
+def cross_validate(base_folder, k=5, save_dir="crossval_models", log_file="crossval_log.txt", use_gpu=True):
     os.makedirs(save_dir, exist_ok=True)
 
     def append_log(lines):
-            with open(log_file, "a", encoding="utf-8") as f:
-                for line in lines:
-                    timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-                    f.write(f"{timestamp} {line}\n")
+        with open(log_file, "a") as f:
+            for line in lines:
+                timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+                f.write(f"{timestamp} {line}\n")
+
+    append_log([f"🔁 Cross-Validation Start - {k} folds with MFCC features\n"])
 
     si_base = SpeakerIdentification(use_gpu=use_gpu)
 
@@ -344,7 +351,7 @@ def cross_validate(base_folder, k=3, save_dir="crossval_models", log_file="cross
             if len(segments) < k:
                 fold_log.append(f"⚠️ Skipping speaker {speaker} with only {len(segments)} segments (need at least {k})")
                 continue
-                
+
             kf = KFold(n_splits=k, shuffle=True, random_state=fold)
             splits = list(kf.split(segments))
 
@@ -390,6 +397,7 @@ def cross_validate(base_folder, k=3, save_dir="crossval_models", log_file="cross
         append_log(fold_log)
 
         metrics.append((accuracy, precision_macro, recall_macro, f1_macro))
+        break
 
     if metrics:
         avg_metrics = np.mean(metrics, axis=0)
@@ -401,7 +409,7 @@ def cross_validate(base_folder, k=3, save_dir="crossval_models", log_file="cross
             f"Average F1-score: {avg_metrics[3]:.2f}"
         ]
         append_log(summary_lines)
-    
+
 if __name__ == "__main__":
     use_gpu = torch.cuda.is_available()
     if use_gpu:
@@ -409,6 +417,6 @@ if __name__ == "__main__":
         print(f"CUDA version: {torch.version.cuda}")
     else:
         print("No GPU detected, falling back to CPU")
-    
-    train_voice_folder = "../reserve"
-    cross_validate(train_voice_folder, k=3, use_gpu=use_gpu)
+
+    train_voice_folder = "../train_voice"
+    cross_validate(train_voice_folder, k=5, use_gpu=use_gpu)
