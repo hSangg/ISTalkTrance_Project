@@ -91,122 +91,6 @@ class Room:
             "users": [user.to_dict() for user in self.users]
         }
 
-
-@app.route("/summarization", methods=["POST"])
-def summarization():
-    print("start summarization......")
-
-
-    if AUDIO not in request.files:
-        return jsonify({ERROR: NO_FILES_PROVIDED}), 400
-
-    audio_file = request.files[AUDIO]
-
-    audio_bytes = audio_file.read()
-
-    audio_io = BytesIO(audio_bytes)
-
-    with wave.open(BytesIO(audio_bytes), 'rb') as wav_file:
-        wav_file.getframerate()
-        wav_file.getnchannels()
-        wav_file.getsampwidth()
-
-    full_audio_io = BytesIO(audio_bytes)
-    full_audio, sr = librosa.load(full_audio_io, sr=None, mono=True)
-
-    diarization = pipeline(audio_io)
-
-    results = []
-
-    for turn, _, speaker in diarization.itertracks(yield_label=True):
-        start_time = str(timedelta(seconds=int(turn.start)))
-        end_time = str(timedelta(seconds=int(turn.end)))
-
-        if start_time == end_time:
-            continue
-
-        start_sample = int(turn.start * sr)
-        end_sample = int(turn.end * sr)
-
-        audio_segment = full_audio[start_sample:end_sample]
-
-        segment_wav = BytesIO()
-        sf.write(segment_wav, audio_segment, sr, format='WAV')
-        segment_wav.seek(0)
-
-        print(f"🏃‍♂️ start predict speaker from: {start_time} to: {end_time}")
-
-        try:
-            audio_data, sample_rate = sf.read(segment_wav)
-            if len(audio_data.shape) > 1:
-                audio_data = np.mean(audio_data, axis=1)
-        except Exception as e:
-            print(f"Error loading audio file: {e}")
-
-        predicted_speaker, confidence_scores = authenticator.authenticate_qcnn(
-            audio_data=audio_data,
-            sample_rate=sample_rate,
-            model_dir="mfcc_qcnn_hmm_models"
-        )
-
-        segment_wav.seek(0)
-
-        segment_file = FileStorage(
-            stream=segment_wav,
-            filename=f"segment_{start_time}_{end_time}.wav",
-            content_type="audio/wav"
-        )
-
-        segment_path = Utils.store_WAV(segment_file)
-
-
-        transcription = transcriber(segment_path)['text']
-
-        results.append({
-            "start_time": start_time,
-            "end_time": end_time,
-            "speaker_data": predicted_speaker,
-            "transcription": transcription
-        })
-
-    dialogue_text = "\n".join(
-        f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in results
-    )
-
-    prompt = "Đây là đoạn hội thoại theo format người nói: nội dung. HÃY TÓM TẮT LẠI THEO TỪNG NGƯỜI NÓI. " + dialogue_text
-
-    client = OpenAI(api_key=openai_token)
-
-    response = client.responses.create(
-        model="gpt-4.1",
-        input=prompt
-    )
-    room_sid = request.form.get('roomSid')
-    room_name = request.form.get('roomName')
-    composition_sid = request.form.get('compositionSid')
-
-    result = mongo.db.rooms.update_one(
-        {"roomSid": room_sid},
-        {"$set": {"summarization": response.output_text, "timestamp": datetime.utcnow()}}
-    )
-
-    if result.matched_count == 0:
-        new_room = Room(room_name, room_sid, response.output_text)
-        mongo.db.rooms.insert_one(new_room.to_dict())
-
-    return jsonify({
-        "message": "Summarization completed successfully.",
-        "speech": results,
-        "prompt": prompt,
-        "summarization": response.output_text,
-    }), 200
-
-
-@app.route('/rooms', methods=['GET'])
-def get_all_rooms():
-    rooms = list(mongo.db.rooms.find({}).sort("timestamp", -1))
-    return jsonify(rooms), 200
-
 @app.route("/train-all-hmm", methods=["POST"])
 def train_all_hmm():
     Trainner.train_hmm_model_all()
@@ -220,15 +104,13 @@ def predict_QCNN():
     file = request.files['audio_file']
 
     try:
-        # Đọc dữ liệu âm thanh từ file upload (dạng byte stream)
         audio_data, sample_rate = sf.read(io.BytesIO(file.read()))
         if len(audio_data.shape) > 1:
-            audio_data = np.mean(audio_data, axis=1)  # convert to mono nếu stereo
+            audio_data = np.mean(audio_data, axis=1)
     except Exception as e:
         return jsonify({"error": f"Error reading audio file: {str(e)}"}), 500
 
     try:
-        # Gọi hàm nhận diện giọng nói
         speaker, confidence = VoiceAuthenticator.authenticate_qcnn(audio_data, sample_rate)
 
         return jsonify({
