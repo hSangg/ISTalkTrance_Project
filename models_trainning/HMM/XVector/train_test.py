@@ -10,7 +10,7 @@ from sklearn.metrics import classification_report, accuracy_score
 from sklearn.model_selection import KFold
 from speechbrain.inference.classifiers import EncoderClassifier
 
-TRAIN_ROOT = "test_voice"
+TRAIN_ROOT = "test_voice_pho"
 
 def cross_validate(k_folds=5):
     classifier = EncoderClassifier.from_hparams(source="speechbrain/spkrec-xvect-voxceleb", run_opts={"device": "cpu"})

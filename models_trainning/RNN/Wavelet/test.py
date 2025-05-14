@@ -141,7 +141,7 @@ def process_all_subfolders(test_voice_folder, model_path, speaker_map_path):
 
 
 if __name__ == "__main__":
-    test_voice_folder = "test_voice"
+    test_voice_folder = "test_voice_pho"
     model_path = "rnn_wavelet_models/model.pth"
     speaker_map_path = "rnn_wavelet_models/speaker_to_idx.pth"
 

@@ -132,7 +132,7 @@ def generate_evaluation_report(results, all_true, all_pred):
 
 
 if __name__ == "__main__":
-    test_voice_folder = "test_voice"
+    test_voice_folder = "test_voice_pho"
 
     print(f"Starting evaluation of all subfolders in {test_voice_folder}...")
     all_results, all_true_labels, all_pred_labels = evaluate_all_subfolders(test_voice_folder)

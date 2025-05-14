@@ -105,7 +105,7 @@ def load_speaker_models(model_folder):
     return speaker_models
 
 
-test_folder = "test_voice"
+test_folder = "test_voice_pho"
 
 speaker_models = load_speaker_models("rnn_dvector_models")
 

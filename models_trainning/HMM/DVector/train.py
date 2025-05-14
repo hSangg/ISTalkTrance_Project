@@ -83,4 +83,4 @@ def train_all_from_folder(train_root="train_voice"):
         train_hmm_for_speaker(speaker, dvectors)
 
 if __name__ == "__main__":
-    train_all_from_folder("test_voice")
+    train_all_from_folder("test_voice_pho")

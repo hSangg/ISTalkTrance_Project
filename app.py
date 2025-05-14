@@ -50,7 +50,7 @@ identification_threshold = os.getenv("IDENTIFICATION_THRESHOLD", 0.8)
 
 authenticator = VoiceAuthenticator()
 batch_trainer = BatchTrainer()
-transcriber = pipeline("automatic-speech-recognition", model="vinai/PhoWhisper-small", token=hf_token_full_access)
+transcriber = pipeline("automatic-speech-recognition", model="vinai/PhoWhisper-large", token=hf_token_full_access)
 pipeline = pyannote.audio.Pipeline.from_pretrained(
     "pyannote/speaker-diarization-3.1",
     use_auth_token=hf_token_full_access)

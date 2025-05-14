@@ -32,6 +32,8 @@ train/*
 /temp_test
 /temp_wav
 /ok
+/test_voice_gpt
+/test_voice_pho
 document_v2/*
 !document_v2/conference_101719.tex
 !document_v2/resource
