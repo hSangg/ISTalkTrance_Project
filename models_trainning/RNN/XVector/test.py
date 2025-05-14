@@ -93,7 +93,7 @@ def write_predictions(output_path, predictions):
 
 
 classifier = EncoderClassifier.from_hparams(source="speechbrain/spkrec-xvect-voxceleb", run_opts={"device": "cpu"})
-test_voice_dir = "test_voice"
+test_voice_dir = "test_voice_pho"
 speaker_models = {sp[:-4]: load_rnn_model(sp[:-4]) for sp in os.listdir("rnn_xvector_models") if sp.endswith(".pth")}
 
 for subdir in os.listdir(test_voice_dir):

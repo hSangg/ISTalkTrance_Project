@@ -6,10 +6,10 @@ from rouge_score import rouge_scorer
 # Tạo RougeScorer
 scorer = rouge_scorer.RougeScorer(["rouge1", "rouge2", "rougeL"], use_stemmer=True)
 
-base_path = "test_voice"
+base_path = "test_voice_gpt"
 overall_results = {"rouge1": [], "rouge2": [], "rougeL": []}
 
-# Duyệt tất cả các thư mục con trong test_voice
+# Duyệt tất cả các thư mục con trong test_voice_pho
 for folder_name in os.listdir(base_path):
     folder_path = os.path.join(base_path, folder_name)
     true_file = os.path.join(folder_path, "true_summarization.json")

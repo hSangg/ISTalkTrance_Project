@@ -155,7 +155,7 @@ for speaker, feats in speaker_features.items():
     print("🏃‍♂️ train hmm for: ", speaker)
     train_hmm_for_speaker(speaker, feats)
 
-test_root = "test_voice"
+test_root = "test_voice_pho"
 
 for folder in os.listdir(test_root):
     subfolder = os.path.join(test_root, folder)

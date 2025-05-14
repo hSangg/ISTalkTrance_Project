@@ -7,7 +7,7 @@ import torchaudio
 from hmmlearn import hmm
 from speechbrain.inference.classifiers import EncoderClassifier
 
-TEST_ROOT = "test_voice"
+TEST_ROOT = "test_voice_pho"
 TRAIN_ROOT = "train_voice"
 
 

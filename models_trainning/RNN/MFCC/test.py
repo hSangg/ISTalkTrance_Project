@@ -138,7 +138,7 @@ def process_test_folders(test_root_folder, model_path, speakers_path, fixed_leng
 
 
 if __name__ == "__main__":
-    TEST_ROOT_FOLDER = "test_voice"
+    TEST_ROOT_FOLDER = "test_voice_pho"
     MODEL_PATH = "rnn_mfcc_models/speaker_recognition_rnn.keras"
     SPEAKERS_PATH = "rnn_mfcc_models/speakers.npy"
 
