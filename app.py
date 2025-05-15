@@ -170,10 +170,11 @@ def summarization():
         })
 
     dialogue_text = "\n".join(
-        f'{entry["speaker_data"]}: {entry["transcription"]}' for entry in results
+        f'{entry["speaker_data"]} từ: {entry["start_time"]} đến: {entry["end_time"]} nói: {entry["transcription"]}' for entry in results
     )
 
-    prompt = "Đây là đoạn hội thoại theo format người nói: nội dung. HÃY TÓM TẮT LẠI THEO TỪNG NGƯỜI NÓI. " + dialogue_text
+    prompt = ("Đây là đoạn hội thoại theo định dạng theo chuẩn {người nói} từ {thời gian bắt đầu} đến: {thời gian kết thúc} nói: nội dung. HÃY TÓM TẮT LẠI THEO TỪNG NGƯỜI NÓI VÀ THỜi GIAN,"
+              "LƯU Ý TRONG PHẦN NỘI DUNG CÓ THỂ SAI CHÍNH TẢ: ") + dialogue_text
 
     client = OpenAI(api_key=openai_token)
 
