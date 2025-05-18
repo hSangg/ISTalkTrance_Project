@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import tempfile
 import wave
@@ -143,10 +144,19 @@ def summarization():
         except Exception as e:
             print(f"Error loading audio file: {e}")
 
+        model_list_json = request.form.get("modelList")
+
+        try:
+            model_list = json.loads(model_list_json)
+        except (json.JSONDecodeError, TypeError):
+            model_list = None
+
+
         predicted_speaker, confidence_scores = authenticator.authenticate_qcnn(
             audio_data=audio_data,
             sample_rate=sample_rate,
-            model_dir="mfcc_qcnn_hmm_models"
+            model_dir="mfcc_qcnn_hmm_models",
+            model_list=model_list
         )
 
         segment_wav.seek(0)
@@ -158,7 +168,6 @@ def summarization():
         )
 
         segment_path = Utils.store_WAV(segment_file)
-
 
         transcription = transcriber(segment_path)['text']
 
