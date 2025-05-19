@@ -230,15 +230,13 @@ def predict_QCNN():
     file = request.files['audio_file']
 
     try:
-        # Đọc dữ liệu âm thanh từ file upload (dạng byte stream)
         audio_data, sample_rate = sf.read(io.BytesIO(file.read()))
         if len(audio_data.shape) > 1:
-            audio_data = np.mean(audio_data, axis=1)  # convert to mono nếu stereo
+            audio_data = np.mean(audio_data, axis=1)
     except Exception as e:
         return jsonify({"error": f"Error reading audio file: {str(e)}"}), 500
 
     try:
-        # Gọi hàm nhận diện giọng nói
         speaker, confidence = VoiceAuthenticator.authenticate_qcnn(audio_data, sample_rate)
 
         return jsonify({
