@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 import os
@@ -10,10 +11,12 @@ import librosa
 import numpy as np
 import pyannote.audio
 import soundfile as sf
+from deep_translator import GoogleTranslator
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_pymongo import PyMongo
+from flask_socketio import SocketIO
 from openai import OpenAI
 from transformers import (pipeline)
 from werkzeug.datastructures import FileStorage
@@ -36,11 +39,12 @@ HHMMSS_FORMAT = "%H:%M:%S"
 NO_FILES_PROVIDED = "No files provided"
 SCRIPT = "script"
 AUDIO = "audio"
+MISSING_FILES = "Missing required files: script.txt and raw.wav"
 
 app = Flask(__name__)
 CORS(app)
 Config.setup()
-
+socketio = SocketIO(app, cors_allowed_origins="*")
 mongo_url = os.getenv("MONGO_URI")
 app.config["MONGO_URI"] = mongo_url
 mongo = PyMongo(app)
@@ -92,6 +96,82 @@ class Room:
             "users": [user.to_dict() for user in self.users]
         }
 
+@socketio.on("media")
+def on_media(data):
+    stream_sid = data["streamSid"]
+    track = data["track"]
+    audio_payload = base64.b64decode(data['media']['payload'])
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+        f.write(audio_payload)
+        temp_path = f.name
+
+
+    result = transcriber(temp_path)
+    text = result['text']
+    if not text.strip():
+        return
+
+    if track == "inbound_track":
+        translated = GoogleTranslator(source='en', target='vi').translate(text)
+        print(f"[A -> B] EN: {text} → VI: {translated}")
+
+    elif track == "outbound_track":
+        translated = GoogleTranslator(source='vi', target='en').translate(text)
+        print(f"[B -> A] VI: {text} → EN: {translated}")
+
+
+clients = {}
+
+@socketio.on("register")
+def register(data):
+    user_id = data['userId']
+    clients[user_id] = request.sid
+
+def send_to_A(payload):
+    socketio.emit("translated_text", payload, room=clients["A"])
+
+def send_to_B(payload):
+    socketio.emit("translated_text", payload, room=clients["B"])
+
+
+@app.route("/translation", methods=["POST"])
+def translation():
+    client = OpenAI(api_key=openai_token)
+
+    if 'audio' not in request.files:
+        return jsonify({'error': 'No audio file provided'}), 400
+
+    audio_file = request.files['audio']
+
+    if audio_file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    source_language = request.form.get('sourceLanguage')
+    target_language = request.form.get('targetLanguage')
+
+    try:
+        audio_content = audio_file.read()
+        audio_buffer = BytesIO(audio_content)
+        audio_buffer.name = audio_file.filename
+
+        transcription = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_buffer
+        )
+
+        translated = GoogleTranslator(source=source_language, target=target_language).translate(
+            text=transcription.text
+        )
+
+        return jsonify({
+            "message": "Translation completed successfully.",
+            "script": transcription.text,
+            "translated": translated
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': f'Translation failed: {str(e)}'}), 500
 
 @app.route("/summarization", methods=["POST"])
 def summarization():
@@ -169,7 +249,12 @@ def summarization():
 
         segment_path = Utils.store_WAV(segment_file)
 
-        transcription = transcriber(segment_path)['text']
+        client = OpenAI(api_key=openai_token)
+
+        transcription = client.audio.transcriptions.create(
+            model="gpt-4o-transcribe",
+            file=segment_path
+        )['test']
 
         results.append({
             "start_time": start_time,
@@ -182,10 +267,9 @@ def summarization():
         f'{entry["speaker_data"]} từ: {entry["start_time"]} đến: {entry["end_time"]} nói: {entry["transcription"]}' for entry in results
     )
 
-    prompt = ("Đây là đoạn hội thoại theo định dạng theo chuẩn {người nói} từ {thời gian bắt đầu} đến: {thời gian kết thúc} nói: nội dung. HÃY TÓM TẮT LẠI THEO TỪNG NGƯỜI NÓI VÀ THỜi GIAN,"
-              "LƯU Ý TRONG PHẦN NỘI DUNG CÓ THỂ SAI CHÍNH TẢ: ") + dialogue_text
+    prompt = ("Đây là đoạn hội thoại theo định dạng theo chuẩn {người nói} từ {thời gian bắt đầu} đến: {thời gian kết thúc} nói: nội dung. HÃY TÓM TẮT LẠI THEO TỪNG NGƯỜI NÓI VÀ THỜi GIAN VÀ 1 BẢNG TÓM TẮT TOÀN BỘ NỘI DUNG CUỘC HỌP"
+              "LƯU Ý TRONG PHẦN NỘI DUNG CÓ THỂ SAI CHÍNH TẢ: ") + dialogue_text + "HÃY TRẢ LỜI VÀ ĐỪNG HỎI GÌ TÔI THÊM"
 
-    client = OpenAI(api_key=openai_token)
 
     response = client.responses.create(
         model="gpt-4.1",
@@ -245,11 +329,6 @@ def predict_QCNN():
         })
     except Exception as e:
         return jsonify({"error": f"Model prediction error: {str(e)}"}), 500
-    
-MESSAGE = "message"
-COMPLETED = "Training completed successfully"
-ERROR = "Error during training"
-MISSING_FILES = "Missing required files: script.txt and raw.wav"
 
 @app.route('/train-qcnn-hmm', methods=['POST'])
 def train_model_qcnn_hmm():
