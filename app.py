@@ -1,4 +1,3 @@
-import base64
 import io
 import json
 import os
@@ -16,7 +15,6 @@ from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_pymongo import PyMongo
-from flask_socketio import SocketIO
 from openai import OpenAI
 from transformers import (pipeline)
 from werkzeug.datastructures import FileStorage
@@ -44,7 +42,6 @@ MISSING_FILES = "Missing required files: script.txt and raw.wav"
 app = Flask(__name__)
 CORS(app)
 Config.setup()
-socketio = SocketIO(app, cors_allowed_origins="*")
 mongo_url = os.getenv("MONGO_URI")
 app.config["MONGO_URI"] = mongo_url
 mongo = PyMongo(app)
@@ -55,7 +52,7 @@ identification_threshold = os.getenv("IDENTIFICATION_THRESHOLD", 0.8)
 
 authenticator = VoiceAuthenticator()
 batch_trainer = BatchTrainer()
-transcriber = pipeline("automatic-speech-recognition", model="vinai/PhoWhisper-medium", token=hf_token_full_access)
+# transcriber = pipeline("automatic-speech-recognition", model="vinai/PhoWhisper-medium", token=hf_token_full_access)
 pipeline = pyannote.audio.Pipeline.from_pretrained(
     "pyannote/speaker-diarization-3.1",
     use_auth_token=hf_token_full_access)
@@ -95,44 +92,6 @@ class Room:
             "roomSid": self.room_sid,
             "users": [user.to_dict() for user in self.users]
         }
-
-@socketio.on("media")
-def on_media(data):
-    stream_sid = data["streamSid"]
-    track = data["track"]
-    audio_payload = base64.b64decode(data['media']['payload'])
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-        f.write(audio_payload)
-        temp_path = f.name
-
-
-    result = transcriber(temp_path)
-    text = result['text']
-    if not text.strip():
-        return
-
-    if track == "inbound_track":
-        translated = GoogleTranslator(source='en', target='vi').translate(text)
-        print(f"[A -> B] EN: {text} → VI: {translated}")
-
-    elif track == "outbound_track":
-        translated = GoogleTranslator(source='vi', target='en').translate(text)
-        print(f"[B -> A] VI: {text} → EN: {translated}")
-
-
-clients = {}
-
-@socketio.on("register")
-def register(data):
-    user_id = data['userId']
-    clients[user_id] = request.sid
-
-def send_to_A(payload):
-    socketio.emit("translated_text", payload, room=clients["A"])
-
-def send_to_B(payload):
-    socketio.emit("translated_text", payload, room=clients["B"])
 
 
 @app.route("/translation", methods=["POST"])
