@@ -108,6 +108,7 @@ def translation():
 
     source_language = request.form.get('sourceLanguage')
     target_language = request.form.get('targetLanguage')
+    user_id = request.form.get('userId')
 
     try:
         audio_content = audio_file.read()
@@ -126,7 +127,8 @@ def translation():
         return jsonify({
             "message": "Translation completed successfully.",
             "script": transcription.text,
-            "translated": translated
+            "translated": translated,
+            "userId": user_id
         }), 200
 
     except Exception as e:
