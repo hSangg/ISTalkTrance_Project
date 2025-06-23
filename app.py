@@ -17,14 +17,12 @@ from flask_cors import CORS
 from flask_pymongo import PyMongo
 from openai import OpenAI
 from transformers import (pipeline)
-from werkzeug.datastructures import FileStorage
 
 from modules.MFCC_QCNN_HMM import SpeakerIdentification
 from modules.authenticate import VoiceAuthenticator
 from modules.batch_trainer import BatchTrainer
 from modules.config import Config
 from modules.trainner import Trainner
-from modules.utils import Utils
 
 load_dotenv()
 
@@ -116,8 +114,9 @@ def translation():
         audio_buffer.name = audio_file.filename
 
         transcription = client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_buffer
+            model="gpt-4o-transcribe",
+            file=audio_buffer,
+            language=target_language
         )
 
         translated = GoogleTranslator(source=source_language, target=target_language).translate(
@@ -202,26 +201,18 @@ def summarization():
 
         segment_wav.seek(0)
 
-        segment_file = FileStorage(
-            stream=segment_wav,
-            filename=f"segment_{start_time}_{end_time}.wav",
-            content_type="audio/wav"
-        )
-
-        segment_path = Utils.store_WAV(segment_file)
-
         client = OpenAI(api_key=openai_token)
 
         transcription = client.audio.transcriptions.create(
             model="gpt-4o-transcribe",
-            file=segment_path
-        )['test']
+            file=("segment.wav", segment_wav)
+        )
 
         results.append({
             "start_time": start_time,
             "end_time": end_time,
             "speaker_data": predicted_speaker,
-            "transcription": transcription
+            "transcription": transcription.text
         })
 
     dialogue_text = "\n".join(
