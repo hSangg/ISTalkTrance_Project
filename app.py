@@ -203,17 +203,22 @@ def summarization():
 
         client = OpenAI(api_key=openai_token)
 
-        transcription = client.audio.transcriptions.create(
-            model="gpt-4o-transcribe",
-            file=("segment.wav", segment_wav)
-        )
+        try:
+            transcription = client.audio.transcriptions.create(
+                model="gpt-4o-transcribe",
+                file=("segment.wav", segment_wav)
+            )
 
-        results.append({
-            "start_time": start_time,
-            "end_time": end_time,
-            "speaker_data": predicted_speaker,
-            "transcription": transcription.text
-        })
+            results.append({
+                "start_time": start_time,
+                "end_time": end_time,
+                "speaker_data": predicted_speaker,
+                "transcription": transcription.text
+            })
+
+        except Exception as e:
+            print(f"❌ Error during transcription from {start_time} to {end_time}: {e}")
+            continue
 
     dialogue_text = "\n".join(
         f'{entry["speaker_data"]} từ: {entry["start_time"]} đến: {entry["end_time"]} nói: {entry["transcription"]}' for entry in results
