@@ -90,31 +90,24 @@ techniques with acoustic feature analysis, it aims to help many systems with ASR
 purposes achieve high accuracy and robustness in real-time applications.
 \section{Related Work}
 
-In the field of speech recognition and analysis, multiple approaches have been proposed with the aid of machine learning and deep learning techniques. This section presents an overview of the relevant approaches, divided into groups based on the characteristic methodology and the model used.
+Automatic speech recognition (ASR) has undergone significant development through the integration of classical signal processing techniques and modern machine learning models. In this section, we review prior work grouped by feature extraction methods and model architectures that are foundational or relevant to our proposed QCNN-HMM approach.
 
-\subsection{Mel-Frequency Cepstral Coefficients (MFCC)}
+\subsection{Feature Extraction Techniques}
 
-MFCC is one of the most common features in speech signal processing. The article on the use of MFCC to extract characteristics for training HMM models (hidden Markov models) by Rabiner~\cite{rabiner1989tutorial} detailed the use of hidden Markov models (HMM) combined with MFCC characteristics for speech recognition.
+\textbf{Mel-Frequency Cepstral Coefficients (MFCC)} remain one of the most widely adopted features in ASR due to their ability to represent perceptually relevant characteristics of speech. Rabiner~\cite{rabiner1989tutorial} demonstrated the effectiveness of combining MFCC with hidden Markov models (HMM) for robust speech modeling, establishing a foundational pipeline for traditional ASR systems.
 
-\subsection{Wavelet-based Features}
+\textbf{Wavelet Transform}-based features have also been explored for speech representation, especially under noisy or non-stationary conditions. Unlike MFCCs, wavelets provide multi-resolution analysis in both time and frequency domains. Studies such as those by Gupta et al.~\cite{gupta2003robust} and Wang et al.~\cite{wang2008robust} reported improved noise robustness when integrating wavelet features into ASR systems.
 
-Wavelet transform is a powerful tool used to exploit time and frequency information from audio signals. Wavelet shows good ability to handle sound in noisy or unstable environments. Although not as widely used as MFCC, wavelets have recently been applied to systems thanks to their powerful noise cancellation capabilities. Studies have shown that using wavelet transforms in feature extraction can improve the accuracy of speech recognition systems, particularly in environments with noise~\cite{gupta2003robust, wang2008robust}.
+\textbf{X-vector and D-vector embeddings} represent deep learning-based approaches to extract speaker-specific characteristics from audio. X-vectors, introduced by Snyder et al.~\cite{Snyder2018Xvectors}, leverage DNN/TDNN structures to generate discriminative embeddings for speaker recognition tasks. Similarly, Wan et al.~\cite{Wan2018Generalized} proposed D-vectors trained with GE2E loss, enabling effective few-shot speaker verification. These embeddings are now core components in modern toolkits like Kaldi and SpeechBrain.
 
-\subsection{X-vector and D-vector Embeddings}
+\subsection{Model Architectures in ASR}
 
-X-vectors and D-vectors are representations learned from audio data, often used for speaker recognition. X-vector systems typically employ DNN or TDNN networks to learn embeddings that improve speaker discrimination accuracy. These representations are widely used in modern processing pipelines, such as those in Kaldi and SpeechBrain. Snyder et al.~\cite{Snyder2018Xvectors} introduced X-vector as a deep learning representation for speaker recognition. For D-vector, Wan et al.~\cite{Wan2018Generalized} proposed using the GE2E loss function for training, which improves performance in speaker recognition.
+\textbf{Hidden Markov Models (HMM)} have long served as the backbone of conventional ASR systems. The work by Rabiner~\cite{rabiner1989tutorial} laid the groundwork for HMM-based modeling using algorithms such as Viterbi decoding. Subsequent research has shown that hybrid architectures combining HMM with neural networks (e.g., MLPs or RNNs) can further improve performance~\cite{voll2007hybrid, perero2022comparison}.
 
-\subsection{Hidden Markov Models (HMM)}
+\textbf{Recurrent Neural Networks (RNN)} and their variants, such as LSTM and GRU, address temporal dynamics in speech data by maintaining memory over time. RNN-based architectures have achieved substantial success in end-to-end ASR. Notably, Deep Speech~\cite{hannun2014deep} and the work of Graves et al.~\cite{graves2013speech} demonstrated the viability of RNNs in replacing traditional HMM pipelines for sequence modeling.
 
-HMM forms the foundation of many traditional ASR systems. Rabiner~\cite{rabiner1989tutorial} proposed effective Viterbi training methods and algorithms for HMM in speech recognition. Hybrid systems, as discussed in~\cite{voll2007hybrid, perero2022comparison}, have shown that combining HMM with neural networks can enhance accuracy in diverse environments.
+\textbf{Quantum Convolutional Neural Networks (QCNN)} represent a novel approach that integrates quantum computing principles with deep learning. Introduced by Cong et al.~\cite{Cong2019QuantumCNN}, QCNNs aim to reduce parameter redundancy while enhancing representational capacity through quantum entanglement and measurement. While still in early stages of ASR application, work by Yang et al.~\cite{Yang2021Decentralizing} illustrates the potential of QCNNs when integrated with classical models, particularly for structured signal classification.
 
-\subsection{Recurrent Neural Networks (RNN)}
-
-RNNs are widely used in ASR tasks because they can capture temporal dependencies in speech data. LSTM and GRU variants effectively address vanishing gradient problems and model long-term context. Systems like Deep Speech~\cite{hannun2014deep} and the work of Graves et al.~\cite{graves2013speech} show that RNN-based models can achieve good results in end-to-end ASR tasks
-
-\subsection{Quantum Convolutional Neural Networks (QCNN)}
-
-QCNN is a novel model in quantum deep learning, designed to leverage quantum properties to reduce redundant parameters, focus on key features, and enhance representability. Cong et al.~\cite{Cong2019QuantumCNN} introduced QCNN as a new quantum machine learning model that combines features of convolutional neural networks with quantum mechanisms to classify quantum states. Although QCNN has not yet been widely applied in ASR, research by Yang et al.~\cite{Yang2021Decentralizing} shows its potential when combined with classical methods.
 
 \section{Background}
 
@@ -446,6 +439,22 @@ This exceptional performance can be attributed to three key components:
 \end{itemize}
 
 In summary, the combination of DVector embeddings, quantum-enhanced feature learning through QCNN, and temporal modeling via HMM offers a powerful and accurate architecture for speaker recognition tasks.
+
+\subsection{Limitations of QCNN Performance in Certain Configurations}
+
+While QCNN-based models show strong potential, their performance is highly dependent on the choice of input features and the architectural combination. As shown in Table~\ref{tab:asr-results}, QCNN models combined with features like Wavelet or XVector often yield extremely low F1-scores (frequently below 0.2, and in some cases near zero), indicating that these configurations fail to capture meaningful patterns for speaker discrimination.
+
+There are two key factors contributing to this instability:
+
+\begin{itemize}
+    \item \textbf{Suboptimal feature selection}: Input features such as Wavelet and XVector, when not appropriately preprocessed or aligned with the model architecture, may lack sufficient speaker-specific information. In particular, handcrafted features or embeddings not tailored for the task can limit the learning capacity of the model.
+    
+    \item \textbf{Quantum model simulation limitations}: All QCNNs in this study are simulated on classical computers rather than executed on real quantum hardware. While simulation enables feasibility testing, it imposes severe computational constraints. As the number of qubits or circuit depth increases, training time grows significantly, and the risk of poor convergence also rises. These simulation-induced limitations may contribute to the poor and inconsistent performance of certain QCNN configurations.
+\end{itemize}
+
+In contrast, the combination of QCNN with HMM and DVector features demonstrates consistently superior results across all folds, with an average accuracy of \textbf{97\%}, and F1-scores ranging from \textbf{0.92 to 0.98}. This indicates that the effectiveness of QCNN models is highly sensitive to both the feature representations and their integration with temporal models like HMM.
+
+Overall, these findings emphasize that quantum-enhanced learning models like QCNN cannot be evaluated in isolation. Their performance is tightly coupled with the quality of input features and the computational feasibility of simulating quantum circuits. Careful design choices are required to fully leverage their advantages in practical ASR tasks.
 
 \section{Conclusion}
 
