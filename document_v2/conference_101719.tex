@@ -34,7 +34,7 @@
 
 
 \title{
-    Enhancing Speech Extraction And Speaker Recognition Through Machine Learning And Deep Learning Intergration\\
+    Enhancing Speech Extraction And Speaker Recognition Through Machine Learning And Deep Learning Integration\\
 }
 
 \author{
@@ -79,15 +79,13 @@
 
 
 \section{Introduction}
-In the context of increasingly common online meetings and virtual interactions,
-the need for real-time speech processing has become critical.
-While current speech recognition systems mainly focus on transcribing speech into text,
-they often lack the ability to accurately differentiate speakers and extract clean speech signals.
 
-This research focuses on enhancing speech extraction and speaker recognition by
-integrating multiple machine learning models. By combining modern deep learning
-techniques with acoustic feature analysis, it aims to help many systems with ASR
-purposes achieve high accuracy and robustness in real-time applications.
+With the increasing prevalence of online meetings, virtual collaboration, and remote communication, the demand for accurate and real-time speech processing systems has become more urgent than ever. Traditional automatic speech recognition (ASR) systems primarily focus on transcribing spoken content into text. However, these systems often fall short in distinguishing between different speakers and in isolating clean speech signals from overlapping conversations or background noise.
+
+This research addresses these limitations by proposing an integrated framework that enhances both speech extraction and speaker recognition. By leveraging a combination of acoustic feature representations—such as MFCC, Wavelet, X-Vector, and D-Vector—and advanced modeling techniques including Hidden Markov Models (HMM), Recurrent Neural Networks (RNN), and Quantum Convolutional Neural Networks (QCNN), our approach aims to significantly improve the performance and robustness of ASR systems in real-time multi-speaker environments.
+
+The proposed method is especially relevant for applications requiring speaker-aware transcription, speaker diarization, and secure voice-based authentication, where both accuracy and adaptability are critical.
+
 \section{Related Work}
 
 In the field of speech recognition and analysis, multiple approaches have been proposed with the aid of machine learning and deep learning techniques. This section presents an overview of the relevant approaches, divided into groups based on the characteristic methodology and the model used.
@@ -198,7 +196,7 @@ Given an input signal, the DWT decomposes it into approximation and detail
 coefficients at multiple levels using a pair of low-pass and high-pass filters followed by downsampling. This hierarchical decomposition allows for capturing transient and localized features in speech.
 
 We use the Daubechies-4 (db4) wavelet and apply the transform up to level 1.
-From each set of wavelet coefficients, we extract statistical features such as mean, standard deviation, max, min, median, and energy. These features serve as inputs for a Gaussian Hidden Markov Model (HMM) classifier or Recurent Neural Network (RNN). \cite{tufekci2000dwt}
+From each set of wavelet coefficients, we extract statistical features such as mean, standard deviation, max, min, median, and energy. These features serve as inputs for a Gaussian Hidden Markov Model (HMM) classifier or Recurrent Neural Network (RNN). \cite{tufekci2000dwt}
 
 
 
@@ -251,7 +249,7 @@ output of an intermediate layer is used as the speaker embedding.
 
 In this paper, we use the SpeechBrain's SpeakerRecognition class to load the pre-trained
 ECAPA-TDNN model. This model is designed to extract high-quality speaker embeddings.
-Then using the Hidden Markov Models, Recurrent Neural Network,
+Then we used the Hidden Markov Models, Recurrent Neural Network,
 Quantum Convolutional Neural Network to perform training.
 
 
@@ -340,7 +338,7 @@ For classification, we measure the expectation values of Pauli-Z operators on ea
     \langle Z_i \rangle = \langle\psi_{\text{out}}|Z_i|\psi_{\text{out}}\rangle, \quad i \in \{0,1,2,3,4,5,6\}
 \]
 
-While circuit accepts an inputs parameter, our implementation uses random parameterization rather than direct encoding of input features. This approach allows us to explore the quantum feature space through stochastic sampling, which can be advantageous for certain classification tasks.
+While the circuit accepts an input parameter, our implementation uses random parameterization rather than direct encoding of input features. This approach allows us to explore the quantum feature space through stochastic sampling, which can be advantageous for certain classification tasks.
 
 \subsection{Quantum Convolutional Neural Network (QCNN)}
 
@@ -353,11 +351,11 @@ Pooling layers reduce the number of qubits to minimize data size, Quantum aggreg
 
 \subsection{Hybrid QCNN + HMM Model}
 
-We propose a hybrid architecture that combines Quantum Convolutional Neural Networks (QCNN) with Hidden Markov Models (HMM). In this approach, we will not use QCNN as a standalone model, but we will use it to transform features extracted by standard feature extractors (e.g., MFCC, D-Vector) through a combination of quantum convolution, entanglement, and pooling operations as mention in Sections \textit{Quantum Encoding and Circuit Design} and \textit{Quantum Convolutional Neural Network (QCNN)}. We will then combine these transformed features with the original extracted features. The transformed QCNN features act as high-level representations, while the original features retain lower-level spectral and temporal cues. Then we will use the combined features to train the HMM for speaker identification.
+We propose a hybrid architecture that combines Quantum Convolutional Neural Networks (QCNN) with Hidden Markov Models (HMM). In this approach, we will not use QCNN as a standalone model, but we will use it to transform features extracted by standard feature extractors (e.g., MFCC, D-Vector) through a combination of quantum convolution, entanglement, and pooling operations as mentioned in Sections \textit{Quantum Encoding and Circuit Design} and \textit{Quantum Convolutional Neural Network (QCNN)}. We will then combine these transformed features with the original extracted features. The transformed QCNN features act as high-level representations, while the original features retain lower-level spectral and temporal cues. Then we will use the combined features to train the HMM for speaker identification.
 
 Each hidden state in HMM represents a potential speaker identity, while the observation probabilities are computed using the enriched feature vectors. This combination allows the model to leverage both the discriminative power of quantum-enhanced feature transformation and the temporal consistency of HMMs, resulting in more robust speaker identification.
 
-As mentioned in Fig \ref{fig:identification_flow}, we will add an additional step after feature extraction, processing the extracted features through QCNN and then we will combine the original features with the transformed ones to train or identify speakers. Fig \ref{fig:qcnn_flow}, show how it work.
+As mentioned in Fig \ref{fig:identification_flow}, we will add an additional step after feature extraction, processing the extracted features through QCNN and then we will combine the original features with the transformed ones to train or identify speakers. Fig \ref{fig:qcnn_flow}, show how it works.
 
 \begin{figure}[H]
     \centering
@@ -432,7 +430,7 @@ We use cross-validation to train and test many model–extractor combinations, a
 
 Table~\ref{tab:asr-results} presents the performance of different ASR models evaluated across three cross-validation folds. From the results, it is evident that there are significant differences in performance depending on the feature extraction methods and the model architectures used.
 
-We experiments some traditional models like HMM combined with MFCC or Wavelet features achieved moderate accuracy, but their recall and F1-score remained low, indicating limited robustness in distinguishing between speakers. We then use pre-trained XVector and DVector features with HMM, that show a slight improvement in accuracy for XVector, but DVector alone performed poorly when used with HMM without any deep learning enhancement.
+We experimented some traditional models like HMM combined with MFCC or Wavelet features achieved moderate accuracy, but their recall and F1-score remained low, indicating limited robustness in distinguishing between speakers. We then use pre-trained XVector and DVector features with HMM, that show a slight improvement in accuracy for XVector, but DVector alone performed poorly when used with HMM without any deep learning enhancement.
 
 RNN-based models generally outperformed the pure HMM-based approaches. The RNN + DVector model achieved a very high accuracy (up to 86\%) and consistent performance across folds, demonstrating the strength of the pretrained DVector embeddings in capturing speaker characteristics.
 
