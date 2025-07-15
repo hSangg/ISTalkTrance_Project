@@ -1,0 +1,94 @@
+\begin{thebibliography}{10}
+\providecommand{\url}[1]{\texttt{#1}}
+\providecommand{\urlprefix}{URL }
+\providecommand{\doi}[1]{https://doi.org/#1}
+
+\bibitem{Cong2019QuantumCNN}
+Cong, I., Choi, S., Lukin, M.D.: Quantum convolutional neural networks. Nature
+  Physics  \textbf{15},  1273--1278 (2019)
+
+\bibitem{davis1980comparison}
+Davis, S.B., Mermelstein, P.: Comparison of parametric representations for
+  monosyllabic word recognition in continuously spoken sentences. IEEE
+  Transactions on Acoustics, Speech, and Signal Processing  \textbf{28}(4),
+  357--366 (1980)
+
+\bibitem{graves2013speech}
+Graves, A., rahman Mohamed, A., Hinton, G.: Speech recognition with deep
+  recurrent neural networks. 2013 IEEE International Conference on Acoustics,
+  Speech and Signal Processing (ICASSP) pp. 6645--6649 (2013)
+
+\bibitem{gupta2003robust}
+Gupta, M.R., Gilbert, J.P.: Robust speech recognition using wavelet coefficient
+  features. In: Proceedings of the IEEE International Conference on Acoustics,
+  Speech, and Signal Processing (ICASSP). pp. I--613--I--616. IEEE (2003)
+
+\bibitem{hannun2014deep}
+Hannun, A., Case, C., Casper, J., Catanzaro, B., Diamos, G., Elsen, E.,
+  Prenger, R., Satheesh, S., Sengupta, S., Coates, A., Ng, A.Y.: Deep speech:
+  Scaling up end-to-end speech recognition. arXiv preprint arXiv:1412.5567
+  (2014)
+
+\bibitem{ilyas2007speaker}
+Ilyas, M.Z., Samad, S.A., Hussain, A., Ishak, K.A.: Speaker verification using
+  vector quantization and hidden markov model. In: Proceedings of the 5th
+  Student Conference on Research and Development (SCOReD). pp.~1--6. IEEE,
+  Malaysia (2007). \doi{10.1109/SCORED.2007.4451528}
+
+\bibitem{perero2022comparison}
+Perero-Codosero, J.M., Espinoza-Cuadros, F.M., Hern{\'a}ndez-G{\'o}mez, L.A.: A
+  comparison of hybrid and end-to-end asr systems for the iberspeech-rtve 2020
+  speech-to-text transcription challenge. Applied Sciences  \textbf{12}(2),
+  ~903 (2022)
+
+\bibitem{rabiner1989tutorial}
+Rabiner, L.R.: A tutorial on hidden markov models and selected applications in
+  speech recognition. Proceedings of the IEEE  \textbf{77}(2),  257--286 (1989)
+
+\bibitem{Snyder2018Xvectors}
+Snyder, D., Garcia-Romero, D., Sell, G., Povey, D., Khudanpur, S.: X-vectors:
+  Robust dnn embeddings for speaker recognition. In: Proceedings of the IEEE
+  International Conference on Acoustics, Speech, and Signal Processing
+  (ICASSP). pp. 5329--5333. IEEE (2018)
+
+\bibitem{tufekci2000dwt}
+Tufekci, Z., Gowdy, J.N.: Feature extraction using discrete wavelet transform
+  for speech recognition. In: Proceedings of IEEE Southeastcon. pp. 116--123
+  (2000)
+
+\bibitem{variani2014deep}
+Variani, E., Lei, X., McDermott, E., Moreno, I.L., Gonzalez-Dominguez, J.: Deep
+  neural networks for small footprint text-dependent speaker verification. In:
+  2014 IEEE international conference on acoustics, speech and signal processing
+  (ICASSP). pp. 4052--4056. IEEE (2014)
+
+\bibitem{voll2007hybrid}
+Voll, K.: A hybrid approach to improving automatic speech recognition via nlp.
+  In: Advances in Artificial Intelligence (Canadian AI 2007). pp. 514--525.
+  Springer (2007)
+
+\bibitem{wan2018dvector}
+Wan, L., Wei, X., Xie, L., Xu, Y.: D-vector: A deep learning approach for
+  speaker verification. Interspeech  \textbf{1600-1604},  1600--1604 (2018)
+
+\bibitem{Wan2018Generalized}
+Wan, L., Wang, Q., Papir, A., Moreno, I.L.: Generalized end-to-end loss for
+  speaker verification. In: Proceedings of the IEEE International Conference on
+  Acoustics, Speech, and Signal Processing (ICASSP). pp. 4879--4883. IEEE
+  (2018)
+
+\bibitem{wang2008robust}
+Wang, K.C.: Robust voice activity detection based on discrete wavelet
+  transform. In: Proceedings of the 20th Conference on Computational
+  Linguistics and Speech Processing. pp. 216--228. The Association for
+  Computational Linguistics and Chinese Language Processing (ACLCLP), Taipei,
+  Taiwan (2008)
+
+\bibitem{Yang2021Decentralizing}
+Yang, C.H.H., Qi, J., Chen, S.Y.C., Chen, P.Y., Siniscalchi, S.M., Ma, X., Lee,
+  C.H.: Decentralizing feature extraction with quantum convolutional neural
+  network for automatic speech recognition. In: Proceedings of the IEEE
+  International Conference on Acoustics, Speech and Signal Processing (ICASSP).
+  pp. 6523--6527. IEEE (2021)
+
+\end{thebibliography}
